@@ -1,4 +1,4 @@
-# Dependencies
+# Dependencies (never commit — Next SWC binaries exceed GitHub's 100 MB limit)
 node_modules/
 .pnp
 .pnp.js
