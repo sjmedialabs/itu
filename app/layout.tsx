@@ -1,12 +1,22 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Bricolage_Grotesque, Lobster_Two } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
-const inter = Inter({
+const bodyFont = Bricolage_Grotesque({
   subsets: ['latin'],
   variable: '--font-app',
+  display: 'swap',
+  weight: 'variable',
+  axes: ['opsz'],
+})
+
+const titleFont = Lobster_Two({
+  subsets: ['latin'],
+  weight: ['400', '700'],
+  style: ['normal', 'italic'],
+  variable: '--font-title',
   display: 'swap',
 })
 
@@ -39,8 +49,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans antialiased bg-background`}>
+    <html
+      lang="en"
+      className={`${bodyFont.variable} ${titleFont.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="font-sans antialiased bg-background">
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

@@ -80,13 +80,13 @@ export default function HomePage() {
     <div className="flex flex-col">
       <section className="relative overflow-hidden border-b border-neutral-200/90 bg-hero-landing">
         <div className="container relative mx-auto px-4 pb-14 pt-4 md:pb-16 md:pt-6 lg:pb-20">
-          <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
-            <div className="animate-in fade-in slide-in-from-bottom-3 duration-500 max-w-xl space-y-6 lg:pt-4">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
+            <div className="animate-in fade-in slide-in-from-bottom-3 duration-500 mx-auto max-w-xl space-y-6 text-center lg:pt-4">
               <h1 className="text-balance text-4xl font-bold leading-[1.08] tracking-tight text-primary md:text-5xl lg:text-[3.25rem]">
                 {content.hero.showWelcomeBack && user ? `Welcome back ${user.name}` : content.hero.title}
               </h1>
               <p className="text-lg leading-relaxed text-neutral-600 md:text-xl">{content.hero.subtitle}</p>
-              <div className="flex flex-wrap gap-3 pt-1">
+              <div className="flex flex-wrap justify-center gap-3 pt-1">
                 {content.appPromo.showAppStore && (
                   <Button
                     variant="outline"
@@ -384,10 +384,10 @@ export default function HomePage() {
 
       <section className="py-16 md:py-20">
         <div className="container mx-auto overflow-hidden rounded-3xl border border-border/70 bg-card shadow-elevated">
-          <div className="grid lg:grid-cols-2">
-            <div className="relative min-h-[280px]">
+          <div className="grid lg:grid-cols-2 lg:items-stretch">
+            <div className="relative aspect-[5/4] min-h-[240px] w-full sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[320px]">
               <Image
-                src="https://images.unsplash.com/photo-1529333166437-7750a6dd5a44?w=1200&q=80"
+                src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1200&q=80"
                 alt="Customer using smartphone"
                 fill
                 className="object-cover"

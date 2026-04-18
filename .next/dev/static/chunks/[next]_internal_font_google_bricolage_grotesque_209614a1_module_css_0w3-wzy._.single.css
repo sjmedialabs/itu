@@ -1,0 +1,20 @@
+/* [next]/internal/font/google/bricolage_grotesque_209614a1.module.css [app-client] (css) */
+@font-face {
+  font-family: Bricolage Grotesque Fallback;
+  src: local(Arial);
+  ascent-override: 88.21%;
+  descent-override: 25.61%;
+  line-gap-override: 0.0%;
+  size-adjust: 105.43%;
+}
+
+.bricolage_grotesque_209614a1-module__pk-dDG__className {
+  font-family: Bricolage Grotesque, Bricolage Grotesque Fallback;
+  font-style: normal;
+}
+
+.bricolage_grotesque_209614a1-module__pk-dDG__variable {
+  --font-title: "Bricolage Grotesque", "Bricolage Grotesque Fallback";
+}
+
+/*# sourceMappingURL=%5Bnext%5D_internal_font_google_bricolage_grotesque_209614a1_module_css_0w3-wzy._.single.css.map*/
