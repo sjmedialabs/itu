@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["turbopack:///[next]/internal/font/google/lobster_two_22d540ad.module.css"],"sourcesContent":["@font-face {\n    font-family: 'Lobster Two Fallback';\n    src: local(\"Arial\");\n    ascent-override: 122.47%;\ndescent-override: 30.62%;\nline-gap-override: 0.00%;\nsize-adjust: 81.65%;\n\n}\n.className {\n    font-family: 'Lobster Two', 'Lobster Two Fallback';\n    \n}\n.variable {\n    --font-lobster: 'Lobster Two', 'Lobster Two Fallback';\n}\n"],"names":[],"mappings":"AAAA;;;;;;;;;AASA;;;;AAIA","ignoreList":[0]}}]
-}
