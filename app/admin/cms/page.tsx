@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -82,6 +82,17 @@ export default function CMSPage() {
   const [newFAQ, setNewFAQ] = useState({ question: '', answer: '' })
   const [editingCountry, setEditingCountry] = useState<PopularCountry | null>(null)
   const [newCountry, setNewCountry] = useState({ code: '', name: '', flag: '', dialCode: '' })
+  const [savedSnapshot, setSavedSnapshot] = useState(() => JSON.stringify(content))
+
+  const contentSnapshot = useMemo(() => JSON.stringify(content), [content])
+  const hasUnsavedChanges = isDirty || contentSnapshot !== savedSnapshot
+
+  useEffect(() => {
+    // Keep the saved snapshot aligned with persisted CMS content after hydration/clean state.
+    if (!isDirty && saveStatus !== 'saving') {
+      setSavedSnapshot(contentSnapshot)
+    }
+  }, [contentSnapshot, isDirty, saveStatus])
 
   const fileToDataUrl = async (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -102,6 +113,7 @@ export default function CMSPage() {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000))
     markClean()
+    setSavedSnapshot(contentSnapshot)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
   }
@@ -142,7 +154,7 @@ export default function CMSPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          <Button onClick={handleSave} disabled={!isDirty || saveStatus === 'saving'} className="gap-2">
+          <Button onClick={handleSave} disabled={saveStatus === 'saving'} className="gap-2">
             {saveStatus === 'saving' ? (
               <>Saving...</>
             ) : saveStatus === 'saved' ? (
@@ -160,7 +172,7 @@ export default function CMSPage() {
         </div>
       </div>
 
-      {isDirty && (
+      {hasUnsavedChanges && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 text-sm text-yellow-800 dark:text-yellow-200">
           You have unsaved changes. Click &quot;Save Changes&quot; to publish your updates.
         </div>
