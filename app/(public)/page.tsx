@@ -75,10 +75,8 @@ export default function HomePage() {
 
   const popularCountries = content.popularCountries.filter((c) => c.isActive).sort((a, b) => a.order - b.order)
   const faqItems = content.faq.items.filter((i) => i.isActive).sort((a, b) => a.order - b.order)
-  const topupSectionImage =
-    content.topupCard.sectionImage || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80'
-  const appPromoSectionImage =
-    content.appPromo.sectionImage || 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1200&q=80'
+  const topupSectionImage = content.topupCard.sectionImage
+  const appPromoSectionImage = content.appPromo.sectionImage
   const countriesSectionImage = content.countriesSection?.sectionImage || ''
   const faqSectionImage = content.faq.sectionImage || ''
 
@@ -327,13 +325,15 @@ export default function HomePage() {
             <div className="absolute -left-6 -top-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" aria-hidden />
             <div className="absolute -bottom-8 -right-8 h-28 w-28 rounded-full bg-accent/10 blur-2xl" aria-hidden />
             <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card shadow-elevated">
-              <Image
-                src={topupSectionImage}
-                alt="Phone recharge success preview"
-                width={720}
-                height={900}
-                className="h-auto w-full object-cover"
-              />
+              {topupSectionImage && (
+                <Image
+                  src={topupSectionImage}
+                  alt="Phone recharge success preview"
+                  width={720}
+                  height={900}
+                  className="h-auto w-full object-cover"
+                />
+              )}
               <div className="absolute inset-x-4 bottom-4 rounded-2xl border border-border/60 bg-card/95 p-4 shadow-elevated-sm backdrop-blur-md">
                 <div className="flex items-center gap-3">
                   <div className="flex size-10 items-center justify-center rounded-full bg-success/15 text-success">
@@ -393,14 +393,18 @@ export default function HomePage() {
         <div className="container mx-auto overflow-hidden rounded-3xl border border-border/70 bg-card shadow-elevated">
           <div className="grid lg:grid-cols-2 lg:items-stretch">
             <div className="relative aspect-[5/4] min-h-[240px] w-full sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[320px]">
-              <Image
-                src={appPromoSectionImage}
-                alt="Customer using smartphone"
-                fill
-                className="object-cover"
-                sizes="(min-width: 1024px) 50vw, 100vw"
-              />
-              <div className="absolute inset-0 bg-gradient-to-tr from-background/40 via-transparent to-transparent" />
+              {appPromoSectionImage && (
+                <>
+                  <Image
+                    src={appPromoSectionImage}
+                    alt="Customer using smartphone"
+                    fill
+                    className="object-cover"
+                    sizes="(min-width: 1024px) 50vw, 100vw"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-background/40 via-transparent to-transparent" />
+                </>
+              )}
             </div>
             <div className="flex flex-col justify-center space-y-5 bg-primary px-8 py-12 text-primary-foreground md:px-12">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-foreground/80">Get started</p>

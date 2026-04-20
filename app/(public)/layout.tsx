@@ -27,7 +27,7 @@ import {
   Linkedin,
   Shield,
 } from 'lucide-react'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useAuthStore, useLocalePreferencesStore } from '@/lib/stores'
 import { useCMSStore } from '@/lib/cms-store'
 import { mockCountries } from '@/lib/mock-data'
@@ -273,6 +273,7 @@ export default function PublicLayout({
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[min(100%,22rem)] border-l border-neutral-200/80 bg-white/95 backdrop-blur-xl">
+                <SheetTitle className="sr-only">Navigation menu</SheetTitle>
                 <nav className="mt-10 flex flex-col gap-1">
                   {navLinks.map((item) => {
                     const active = item.match(pathname)

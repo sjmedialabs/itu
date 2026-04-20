@@ -28,23 +28,35 @@ export function TargetedAdBanner() {
   const user = useAuthStore((s) => s.user)
   const regionCode = useLocalePreferencesStore((s) => s.regionCode)
   const transactions = useWalletStore((s) => s.transactions)
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [failedAdIds, setFailedAdIds] = useState<string[]>([])
   const [open, setOpen] = useState(false)
 
-  const ad = useMemo(() => {
+  const adCandidates = useMemo(() => {
     const liveAds = ads.filter((x) => isAdLive(x))
-    if (liveAds.length === 0) return null
+    if (liveAds.length === 0) return []
 
     const frequentCountry = getFrequentTopupCountry(user?.id, transactions)
     const destination = frequentCountry ?? regionCode
 
-    const targeted = liveAds.find((x) => x.targetCountries.includes(destination))
-    if (targeted) return { ad: targeted, destination }
+    const withImage = liveAds.filter((x) => x.imageUrl.trim().length > 0)
+    const targeted = withImage.filter((x) => x.targetCountries.includes(destination))
+    const global = withImage.filter((x) => x.targetCountries.length === 0)
+    const remaining = withImage.filter(
+      (x) => !targeted.some((t) => t.id === x.id) && !global.some((g) => g.id === x.id),
+    )
 
-    const global = liveAds.find((x) => x.targetCountries.length === 0)
-    if (global) return { ad: global, destination }
-
-    return null
+    return [...targeted, ...global, ...remaining].map((candidate) => ({ ad: candidate, destination }))
   }, [ads, user?.id, transactions, regionCode])
+
+  const ad = useMemo(
+    () => adCandidates.find((candidate) => !failedAdIds.includes(candidate.ad.id)) ?? null,
+    [adCandidates, failedAdIds],
+  )
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   useEffect(() => {
     if (!ad) {
@@ -62,7 +74,11 @@ export function TargetedAdBanner() {
     setOpen(false)
   }
 
-  if (!ad || !open) return null
+  useEffect(() => {
+    setFailedAdIds([])
+  }, [adCandidates])
+
+  if (!isHydrated || !ad || !open) return null
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
@@ -90,6 +106,11 @@ export function TargetedAdBanner() {
             src={ad.ad.imageUrl}
             alt={ad.ad.title}
             className="h-48 w-full object-cover sm:h-56"
+            loading="lazy"
+            decoding="async"
+            onError={() => {
+              setFailedAdIds((prev) => (prev.includes(ad.ad.id) ? prev : [...prev, ad.ad.id]))
+            }}
           />
           <div className="flex items-center justify-between gap-3 p-4 sm:p-5">
             <div className="space-y-1">

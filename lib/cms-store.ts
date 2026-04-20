@@ -126,7 +126,7 @@ const defaultContent: SiteContent = {
   hero: {
     title: 'Top-Up Anytime. Anywhere.',
     subtitle: 'Deliver instant top-ups worldwide with a seamless, secure, and always-on platform.',
-    backgroundImage: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=1920&q=80',
+    backgroundImage: '',
     overlayGradient: 'from-[#0d4a6e]/90 via-[#0d6a8e]/80 to-[#3d8ab0]/70',
     ctaText: 'Start top-up',
     showWelcomeBack: true,
@@ -142,12 +142,12 @@ const defaultContent: SiteContent = {
     placeholder: 'Enter phone number',
     buttonText: 'Topup Now',
     buttonColor: '#E30613',
-    sectionImage: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80',
+    sectionImage: '',
   },
   appPromo: {
     title: 'Top-up wherever, whenever',
     subtitle: 'Get the ITU App for the fastest, easiest way to top-up any phone.',
-    sectionImage: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1200&q=80',
+    sectionImage: '',
     showAppStore: true,
     showGooglePlay: true,
     appStoreUrl: '#',
