@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { useAdminToolsStore, isAdLive } from '@/lib/admin-tools-store'
 import { useAuthStore, useLocalePreferencesStore, useWalletStore } from '@/lib/stores'
+import { X } from 'lucide-react'
 
 function getFrequentTopupCountry(
   userId: string | undefined,
@@ -27,6 +28,7 @@ export function TargetedAdBanner() {
   const user = useAuthStore((s) => s.user)
   const regionCode = useLocalePreferencesStore((s) => s.regionCode)
   const transactions = useWalletStore((s) => s.transactions)
+  const [open, setOpen] = useState(false)
 
   const ad = useMemo(() => {
     const liveAds = ads.filter((x) => isAdLive(x))
@@ -44,21 +46,52 @@ export function TargetedAdBanner() {
     return null
   }, [ads, user?.id, transactions, regionCode])
 
-  if (!ad) return null
+  useEffect(() => {
+    if (!ad) {
+      setOpen(false)
+      return
+    }
+    const key = `ad-modal-dismissed:${ad.ad.id}`
+    const dismissed = window.sessionStorage.getItem(key) === '1'
+    setOpen(!dismissed)
+  }, [ad?.ad.id])
+
+  const closeModal = () => {
+    if (!ad) return
+    window.sessionStorage.setItem(`ad-modal-dismissed:${ad.ad.id}`, '1')
+    setOpen(false)
+  }
+
+  if (!ad || !open) return null
 
   return (
-    <aside className="mx-auto mb-4 w-full max-w-6xl px-4 sm:px-6 lg:max-w-7xl">
-      <Link
-        href={ad.ad.ctaUrl || '/recharge'}
-        className="group block overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-elevated-sm transition-transform hover:-translate-y-0.5"
-      >
-        <div className="flex flex-col gap-0 md:flex-row md:items-stretch">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
+      <button
+        type="button"
+        aria-label="Close offer"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+        onClick={closeModal}
+      />
+      <aside className="relative z-[1] w-full max-w-2xl overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-elevated">
+        <button
+          type="button"
+          className="absolute right-3 top-3 z-[2] rounded-full bg-black/50 p-1.5 text-white transition hover:bg-black/70"
+          onClick={closeModal}
+          aria-label="Close ad"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <Link
+          href={ad.ad.ctaUrl || '/recharge'}
+          className="group block"
+          onClick={closeModal}
+        >
           <img
             src={ad.ad.imageUrl}
             alt={ad.ad.title}
-            className="h-36 w-full object-cover md:h-auto md:w-72"
+            className="h-48 w-full object-cover sm:h-56"
           />
-          <div className="flex flex-1 items-center justify-between gap-3 p-4">
+          <div className="flex items-center justify-between gap-3 p-4 sm:p-5">
             <div className="space-y-1">
               <Badge variant="secondary" className="bg-primary/10 text-primary">
                 Destination country offer
@@ -70,8 +103,8 @@ export function TargetedAdBanner() {
             </div>
             <span className="text-sm font-semibold text-primary">View offer</span>
           </div>
-        </div>
-      </Link>
-    </aside>
+        </Link>
+      </aside>
+    </div>
   )
 }

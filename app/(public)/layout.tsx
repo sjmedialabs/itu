@@ -338,7 +338,7 @@ export default function PublicLayout({
           pathname === '/' ? 'pt-0' : 'pt-[5.25rem] sm:pt-[5.5rem]',
         )}
       >
-        {!pathname.startsWith('/account') && <TargetedAdBanner />}
+        {pathname === '/' && <TargetedAdBanner />}
         {pathname === '/' ? (
           children
         ) : pathname.startsWith('/account') ? (
