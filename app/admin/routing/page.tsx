@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,12 +47,19 @@ import {
   getAllRoutingRules, 
   getAllProviders,
   selectBestProvider,
+  upsertRoutingRule,
+  deleteRoutingRule as removeRoutingRule,
+  setRoutingRuleActive,
   type RoutingRule,
   type Provider 
 } from '@/lib/api/lcr-engine'
 import { mockCountries, mockCarriers } from '@/lib/mock-data'
+import { useAuthStore } from '@/lib/stores'
+import { toast } from 'sonner'
 
 export default function AdminRoutingPage() {
+  const router = useRouter()
+  const user = useAuthStore((s) => s.user)
   const [rules, setRules] = useState<RoutingRule[]>(getAllRoutingRules())
   const [providers] = useState<Provider[]>(getAllProviders())
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -68,23 +76,44 @@ export default function AdminRoutingPage() {
     routingType: 'LCR' as 'LCR' | 'PRIORITY' | 'FIXED',
     defaultProviderId: '',
   })
+  const [testCountryCode, setTestCountryCode] = useState('IN')
+  const [testOperatorCode, setTestOperatorCode] = useState('JIO')
+
+  const [panelCountryCode, setPanelCountryCode] = useState('')
+  const [panelPreferredProviderId, setPanelPreferredProviderId] = useState('')
+  const [panelRoutingMode, setPanelRoutingMode] = useState<'CHEAPEST' | 'DEDICATED' | 'GLOBAL_FALLBACK'>('CHEAPEST')
+
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      toast.error('Admins only')
+      router.replace('/account')
+    }
+  }, [user, router])
 
   const handleToggleRule = (ruleId: string) => {
-    setRules(rules.map(r => 
-      r.id === ruleId ? { ...r, isActive: !r.isActive } : r
-    ))
+    const rule = rules.find((r) => r.id === ruleId)
+    if (!rule) return
+    setRoutingRuleActive(ruleId, !rule.isActive)
+    setRules(getAllRoutingRules())
+    toast.success(`Rule ${!rule.isActive ? 'enabled' : 'disabled'} and applied immediately`)
   }
 
   const handleDeleteRule = (ruleId: string) => {
-    setRules(rules.filter(r => r.id !== ruleId))
+    removeRoutingRule(ruleId)
+    setRules(getAllRoutingRules())
+    toast.success('Rule deleted')
   }
 
   const handleTestLCR = (countryCode: string, operatorCode: string) => {
-    const result = selectBestProvider(countryCode, operatorCode, 'TEST_SKU')
-    setTestResult({ countryCode, operatorCode, result })
+    const normalizedOperatorCode = operatorCode.includes('_')
+      ? (operatorCode.split('_').pop() ?? operatorCode)
+      : operatorCode
+    const result = selectBestProvider(countryCode, normalizedOperatorCode, 'TEST_SKU')
+    setTestResult({ countryCode, operatorCode: normalizedOperatorCode, result })
   }
 
   const getCountryName = (code: string) => {
+    if (code === '*') return 'Global Fallback'
     const country = mockCountries.find(c => c.code === code)
     return country ? `${country.flag} ${country.name}` : code
   }
@@ -119,6 +148,69 @@ export default function AdminRoutingPage() {
       name: getCountryName(code),
       carriers: mockCarriers.filter(c => c.countryCode === code),
     }))
+
+  const isSuperAdmin = user?.email?.toLowerCase().trim() === 'admin@itu.com'
+
+  const panelEligibleProviders = providers.filter((provider) => {
+    if (!provider.isActive) return false
+    if (panelRoutingMode === 'GLOBAL_FALLBACK') return true
+    if (!panelCountryCode) return false
+    return provider.supportedCountries.includes(panelCountryCode)
+  })
+
+  useEffect(() => {
+    // Preferred provider is only used for DEDICATED / GLOBAL_FALLBACK modes.
+    if (panelRoutingMode === 'CHEAPEST') {
+      setPanelPreferredProviderId('')
+      return
+    }
+
+    if (!panelPreferredProviderId) return
+
+    const stillEligible = panelEligibleProviders.some((p) => p.id === panelPreferredProviderId)
+    if (!stillEligible) {
+      setPanelPreferredProviderId('')
+    }
+  }, [panelRoutingMode, panelCountryCode, panelPreferredProviderId, panelEligibleProviders])
+
+  const applyRoutingConfiguration = () => {
+    if (panelRoutingMode !== 'GLOBAL_FALLBACK' && !panelCountryCode) {
+      toast.error('Please select a country')
+      return
+    }
+    if (panelRoutingMode !== 'CHEAPEST' && !panelPreferredProviderId) {
+      toast.error('Please select a preferred provider')
+      return
+    }
+
+    if (panelRoutingMode === 'CHEAPEST') {
+      upsertRoutingRule({
+        countryCode: panelCountryCode,
+        operatorCode: undefined,
+        routingType: 'LCR',
+        isActive: true,
+      })
+    } else if (panelRoutingMode === 'DEDICATED') {
+      upsertRoutingRule({
+        countryCode: panelCountryCode,
+        operatorCode: undefined,
+        routingType: 'FIXED',
+        defaultProviderId: panelPreferredProviderId,
+        isActive: true,
+      })
+    } else {
+      upsertRoutingRule({
+        countryCode: '*',
+        operatorCode: undefined,
+        routingType: 'FIXED',
+        defaultProviderId: panelPreferredProviderId,
+        isActive: true,
+      })
+    }
+
+    setRules(getAllRoutingRules())
+    toast.success('Routing configuration applied immediately')
+  }
 
   return (
     <div className="space-y-6">
@@ -254,8 +346,31 @@ export default function AdminRoutingPage() {
                 Cancel
               </Button>
               <Button onClick={() => {
-                // Add rule logic here
+                const countryCode = newRule.countryCode.trim()
+                if (!countryCode) {
+                  toast.error('Please select a country')
+                  return
+                }
+                if (newRule.routingType === 'FIXED' && !newRule.defaultProviderId) {
+                  toast.error('Please select a default provider for fixed routing')
+                  return
+                }
+                upsertRoutingRule({
+                  countryCode,
+                  operatorCode: newRule.operatorCode || undefined,
+                  routingType: newRule.routingType,
+                  defaultProviderId: newRule.defaultProviderId || undefined,
+                  isActive: true,
+                })
+                setRules(getAllRoutingRules())
+                setNewRule({
+                  countryCode: '',
+                  operatorCode: '',
+                  routingType: 'LCR',
+                  defaultProviderId: '',
+                })
                 setIsAddDialogOpen(false)
+                toast.success('Routing rule created and applied immediately')
               }}>
                 Create Rule
               </Button>
@@ -276,13 +391,99 @@ export default function AdminRoutingPage() {
                 <span className="block mt-2">
                   <strong>1.</strong> Operator-specific rule (e.g., MTN Nigeria) <br />
                   <strong>2.</strong> Country-level rule (e.g., all Nigerian operators) <br />
-                  <strong>3.</strong> Default LCR (cheapest available provider)
+                  <strong>3.</strong> Global fallback rule, then default LCR
                 </span>
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {isSuperAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>API Routing Panel (Super Admin)</CardTitle>
+            <CardDescription>
+              Select country, assign preferred provider, configure rule, and apply instantly.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-2">
+              <Label>Routing Mode</Label>
+              <Select value={panelRoutingMode} onValueChange={(v) => setPanelRoutingMode(v as typeof panelRoutingMode)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CHEAPEST">Cheapest provider</SelectItem>
+                  <SelectItem value="DEDICATED">Dedicated country provider</SelectItem>
+                  <SelectItem value="GLOBAL_FALLBACK">Global fallback provider</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Country</Label>
+              <Select
+                value={panelCountryCode}
+                onValueChange={setPanelCountryCode}
+                disabled={panelRoutingMode === 'GLOBAL_FALLBACK'}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={panelRoutingMode === 'GLOBAL_FALLBACK' ? 'Global fallback' : 'Select country'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {countriesWithCarriers.map((country) => (
+                    <SelectItem key={country.code} value={country.code}>
+                      {country.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {panelRoutingMode === 'CHEAPEST' ? (
+              <div className="grid gap-2">
+                <Label>Preferred Provider</Label>
+                <div className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                  Not required for Cheapest mode (system auto-selects best provider).
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label>Preferred Provider</Label>
+                <Select
+                  value={panelPreferredProviderId}
+                  onValueChange={setPanelPreferredProviderId}
+                  disabled={panelRoutingMode === 'DEDICATED' && !panelCountryCode}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        panelRoutingMode === 'DEDICATED' && !panelCountryCode
+                          ? 'Select country first'
+                          : panelEligibleProviders.length === 0
+                            ? 'No eligible providers'
+                            : 'Select provider'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {panelEligibleProviders.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name} ({provider.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex items-end">
+              <Button className="w-full" onClick={applyRoutingConfiguration}>
+                Apply Immediately
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="rules" className="space-y-4">
         <TabsList>
@@ -394,7 +595,7 @@ export default function AdminRoutingPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="grid gap-2">
                   <Label>Country</Label>
-                  <Select>
+                  <Select value={testCountryCode} onValueChange={setTestCountryCode}>
                     <SelectTrigger id="test-country">
                       <SelectValue placeholder="Select country" />
                     </SelectTrigger>
@@ -409,7 +610,7 @@ export default function AdminRoutingPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Operator</Label>
-                  <Select>
+                  <Select value={testOperatorCode} onValueChange={setTestOperatorCode}>
                     <SelectTrigger id="test-operator">
                       <SelectValue placeholder="Select operator" />
                     </SelectTrigger>
@@ -423,7 +624,7 @@ export default function AdminRoutingPage() {
                   </Select>
                 </div>
                 <div className="flex items-end">
-                  <Button onClick={() => handleTestLCR('IN', 'JIO')} className="w-full">
+                  <Button onClick={() => handleTestLCR(testCountryCode, testOperatorCode)} className="w-full">
                     Test Routing
                   </Button>
                 </div>

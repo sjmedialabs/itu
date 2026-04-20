@@ -25,11 +25,13 @@ export interface TopupCardContent {
   placeholder: string
   buttonText: string
   buttonColor: string
+  sectionImage: string
 }
 
 export interface AppPromoContent {
   title: string
   subtitle: string
+  sectionImage: string
   showAppStore: boolean
   showGooglePlay: boolean
   appStoreUrl: string
@@ -47,7 +49,12 @@ export interface FAQItem {
 
 export interface FAQSectionContent {
   title: string
+  sectionImage: string
   items: FAQItem[]
+}
+
+export interface CountriesSectionContent {
+  sectionImage: string
 }
 
 export interface PopularCountry {
@@ -71,6 +78,7 @@ export interface FooterContent {
     linkedin: string
   }
   trustBadgeText: string
+  backgroundImage: string
 }
 
 export interface HeaderContent {
@@ -92,6 +100,7 @@ export interface SiteContent {
   topupCard: TopupCardContent
   appPromo: AppPromoContent
   faq: FAQSectionContent
+  countriesSection: CountriesSectionContent
   popularCountries: PopularCountry[]
   trustSection: TrustSectionContent
   footer: FooterContent
@@ -133,10 +142,12 @@ const defaultContent: SiteContent = {
     placeholder: 'Enter phone number',
     buttonText: 'Topup Now',
     buttonColor: '#E30613',
+    sectionImage: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80',
   },
   appPromo: {
     title: 'Top-up wherever, whenever',
     subtitle: 'Get the ITU App for the fastest, easiest way to top-up any phone.',
+    sectionImage: 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1200&q=80',
     showAppStore: true,
     showGooglePlay: true,
     appStoreUrl: '#',
@@ -145,6 +156,7 @@ const defaultContent: SiteContent = {
   },
   faq: {
     title: 'Have a question about sending mobile recharge with ITU?',
+    sectionImage: '',
     items: [
       { id: '1', question: 'What is ITU?', answer: 'ITU is a leading international mobile top-up platform that allows you to send airtime and data to mobile phones in over 150 countries instantly.', order: 1, isActive: true },
       { id: '2', question: 'What is an international top-up?', answer: 'An international top-up is a way to add credit or data to a mobile phone in another country.', order: 2, isActive: true },
@@ -153,6 +165,9 @@ const defaultContent: SiteContent = {
       { id: '5', question: 'Can I also send data?', answer: 'Yes! Many operators offer data bundles that you can send.', order: 5, isActive: true },
       { id: '6', question: 'Can I pay with my credit card?', answer: 'Yes, we accept all major credit and debit cards including Visa, Mastercard, and American Express.', order: 6, isActive: true },
     ],
+  },
+  countriesSection: {
+    sectionImage: '',
   },
   popularCountries: [
     { code: 'IN', name: 'India', flag: '🇮🇳', dialCode: '+91', order: 1, isActive: true },
@@ -192,6 +207,7 @@ const defaultContent: SiteContent = {
       linkedin: '#',
     },
     trustBadgeText: 'Protected by Trustwave. Secure 128-bit SSL Encrypted.',
+    backgroundImage: '',
   },
 }
 
@@ -203,6 +219,7 @@ interface CMSStore {
   updateTopupCard: (card: Partial<TopupCardContent>) => void
   updateAppPromo: (promo: Partial<AppPromoContent>) => void
   updateFAQ: (faq: Partial<FAQSectionContent>) => void
+  updateCountriesSection: (section: Partial<CountriesSectionContent>) => void
   addFAQItem: (item: Omit<FAQItem, 'id' | 'order'>) => void
   updateFAQItem: (id: string, item: Partial<FAQItem>) => void
   deleteFAQItem: (id: string) => void
@@ -247,6 +264,15 @@ export const useCMSStore = create<CMSStore>()(
       updateFAQ: (faq) =>
         set((state) => ({
           content: { ...state.content, faq: { ...state.content.faq, ...faq } },
+          isDirty: true,
+        })),
+
+      updateCountriesSection: (section) =>
+        set((state) => ({
+          content: {
+            ...state.content,
+            countriesSection: { ...state.content.countriesSection, ...section },
+          },
           isDirty: true,
         })),
 

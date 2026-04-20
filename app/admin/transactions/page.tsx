@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { TransactionDetailDialog, type TransactionDetailModel } from '@/components/transaction-detail-dialog'
 import {
   Table,
   TableBody,
@@ -26,13 +27,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Search, Filter, Download, MoreHorizontal, Eye, RefreshCw, XCircle } from 'lucide-react'
-import { mockRechargeOrders } from '@/lib/mock-data'
+import { Search, Filter, Download, MoreHorizontal, Eye, RefreshCw } from 'lucide-react'
+import { mockRechargeOrders, mockUsers } from '@/lib/mock-data'
+import { useAuthStore } from '@/lib/stores'
 
 export default function AdminTransactionsPage() {
+  const user = useAuthStore((s) => s.user)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [dateFilter, setDateFilter] = useState<string>('all')
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailModel, setDetailModel] = useState<TransactionDetailModel | null>(null)
 
   const filteredOrders = mockRechargeOrders.filter((order) => {
     const matchesSearch =
@@ -56,6 +61,36 @@ export default function AdminTransactionsPage() {
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </Badge>
     )
+  }
+
+  const openTransactionDetail = (order: (typeof mockRechargeOrders)[number]) => {
+    const customer = mockUsers.find((u) => u.id === order.userId)
+    const routingVariant = order.id.charCodeAt(order.id.length - 1) % 3
+    const routingType = routingVariant === 0 ? 'Dedicated' : routingVariant === 1 ? 'Cheapest' : 'Fallback'
+    setDetailModel({
+      id: order.id,
+      createdAt: order.createdAt,
+      status: order.status,
+      amount: order.senderAmount,
+      currency: order.senderCurrency,
+      customerName: customer?.name || 'Unknown',
+      customerEmail: customer?.email || '—',
+      customerCountry: customer?.countryCode || '—',
+      destinationCountry: order.countryName,
+      networkOperator: order.providerName,
+      mobileNumber: `${order.countryCode} ${order.phoneNumber}`,
+      paymentMethod: order.paymentMethod || '—',
+      paymentStatus: order.status,
+      paymentReferenceId: `${order.id}-payref`,
+      gatewayResponse: order.errorMessage || (order.status === 'completed' ? 'Approved' : 'Pending'),
+      providerUsed: order.providerName,
+      routingType,
+      apiResponseStatus: order.status === 'completed' ? 'SUCCESS' : order.status === 'failed' ? 'FAILED' : 'PENDING',
+      errorMessage: order.errorMessage,
+      failureReason: order.errorMessage || (order.status === 'failed' ? 'Provider unavailable' : ''),
+      retryAttempts: order.status === 'failed' ? 1 : 0,
+    })
+    setDetailOpen(true)
   }
 
   const formatDate = (dateString: string) => {
@@ -218,7 +253,7 @@ export default function AdminTransactionsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openTransactionDetail(order)}>
                               <Eye className="mr-2 h-4 w-4" />
                               View Details
                             </DropdownMenuItem>
@@ -226,12 +261,6 @@ export default function AdminTransactionsPage() {
                               <DropdownMenuItem>
                                 <RefreshCw className="mr-2 h-4 w-4" />
                                 Retry
-                              </DropdownMenuItem>
-                            )}
-                            {order.status === 'completed' && (
-                              <DropdownMenuItem className="text-destructive">
-                                <XCircle className="mr-2 h-4 w-4" />
-                                Refund
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -245,6 +274,14 @@ export default function AdminTransactionsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <TransactionDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        transaction={detailModel}
+        viewer={user ? { id: user.id, email: user.email, name: user.name, role: user.role } : null}
+        isAdmin
+      />
     </div>
   )
 }

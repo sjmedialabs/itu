@@ -34,6 +34,7 @@ import { mockCountries } from '@/lib/mock-data'
 import { NAV_CURRENCIES, navRegionShortLabel, isNavCurrency } from '@/lib/locale-nav-data'
 import { cn } from '@/lib/utils'
 import { ItuLogoMark } from '@/components/itu-logo-mark'
+import { TargetedAdBanner } from '@/components/targeted-ad-banner'
 
 const navLinks = [
   { href: '/', label: 'Home', match: (p: string) => p === '/' },
@@ -331,9 +332,19 @@ export default function PublicLayout({
         </div>
       </header>
 
-      <main className="flex flex-1 flex-col pt-[5.25rem] sm:pt-[5.5rem]">
+      <main
+        className={cn(
+          'flex flex-1 flex-col',
+          pathname === '/' ? 'pt-0' : 'pt-[5.25rem] sm:pt-[5.5rem]',
+        )}
+      >
+        {!pathname.startsWith('/account') && <TargetedAdBanner />}
         {pathname === '/' ? (
           children
+        ) : pathname.startsWith('/account') ? (
+          <div className="flex w-full flex-1 flex-col px-4 pb-16 pt-2 sm:px-6">
+            {children}
+          </div>
         ) : (
           <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 pt-2 sm:px-6 lg:max-w-7xl">
             {children}
@@ -341,13 +352,26 @@ export default function PublicLayout({
         )}
       </main>
 
-      <footer className="mt-auto border-t border-border/60 bg-foreground text-background">
+      <footer
+        className="mt-auto border-t border-border/60 bg-foreground text-background"
+        style={
+          content.footer.backgroundImage
+            ? {
+                backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.9)), url(${content.footer.backgroundImage})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }
+            : undefined
+        }
+      >
         <div className="container mx-auto px-4 py-14">
           <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-12">
             <div className="lg:col-span-4 space-y-5">
               <Link href="/" className="inline-flex items-center gap-3">
                 <ItuLogoMark size="md" />
-                <span className="text-2xl font-semibold tracking-tight text-background">{content.header.logoText}</span>
+                <span className="font-title-logo text-2xl font-semibold tracking-tight text-background">
+                  {content.header.logoText}
+                </span>
               </Link>
               <p className="max-w-sm text-sm leading-relaxed text-background/75">{content.footer.brandTagline}</p>
               <div className="flex flex-wrap gap-2 text-sm text-background/80">

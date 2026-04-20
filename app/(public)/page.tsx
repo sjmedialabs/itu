@@ -75,11 +75,23 @@ export default function HomePage() {
 
   const popularCountries = content.popularCountries.filter((c) => c.isActive).sort((a, b) => a.order - b.order)
   const faqItems = content.faq.items.filter((i) => i.isActive).sort((a, b) => a.order - b.order)
+  const topupSectionImage =
+    content.topupCard.sectionImage || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80'
+  const appPromoSectionImage =
+    content.appPromo.sectionImage || 'https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1200&q=80'
+  const countriesSectionImage = content.countriesSection?.sectionImage || ''
+  const faqSectionImage = content.faq.sectionImage || ''
 
   return (
     <div className="flex flex-col">
       <section className="relative overflow-hidden border-b border-neutral-200/90 bg-hero-landing">
-        <div className="container relative mx-auto px-4 pb-14 pt-4 md:pb-16 md:pt-6 lg:pb-20">
+        {content.hero.backgroundImage && (
+          <div className="pointer-events-none absolute inset-0">
+            <Image src={content.hero.backgroundImage} alt="Hero background" fill className="object-cover" priority />
+            <div className={cn('absolute inset-0 bg-gradient-to-r', content.hero.overlayGradient)} />
+          </div>
+        )}
+        <div className="container relative mx-auto px-4 pb-14 pt-24 md:pb-16 md:pt-28 lg:pb-20">
           <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
             <div className="animate-in fade-in slide-in-from-bottom-3 duration-500 mx-auto max-w-xl space-y-6 text-center lg:pt-4">
               <h1 className="text-balance text-4xl font-bold leading-[1.08] tracking-tight text-primary md:text-5xl lg:text-[3.25rem]">
@@ -126,10 +138,6 @@ export default function HomePage() {
 
             <div className="animate-in fade-in slide-in-from-bottom-5 duration-500 delay-100 lg:pt-2">
               <Card className="overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-[0_20px_60px_-24px_rgba(15,23,42,0.18)]">
-                <div className="bg-primary px-5 py-3.5 text-center text-sm font-bold uppercase tracking-wide text-primary-foreground sm:text-[0.95rem]">
-                  Send a Mobile Top-up Instantly
-                </div>
-
                 <div className="border-b border-neutral-200/80 bg-neutral-50/80 px-4 py-5 sm:px-6">
                   {(() => {
                     const steps = [
@@ -287,10 +295,9 @@ export default function HomePage() {
                   </Button>
                 </CardContent>
               </Card>
+              <HeroPaymentLogos className="mt-5 justify-center" />
             </div>
           </div>
-
-          <HeroPaymentLogos className="mt-12 border-t border-neutral-200/60 pt-10 md:mt-14 md:pt-12" />
         </div>
       </section>
 
@@ -321,7 +328,7 @@ export default function HomePage() {
             <div className="absolute -bottom-8 -right-8 h-28 w-28 rounded-full bg-accent/10 blur-2xl" aria-hidden />
             <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-card shadow-elevated">
               <Image
-                src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80"
+                src={topupSectionImage}
                 alt="Phone recharge success preview"
                 width={720}
                 height={900}
@@ -387,7 +394,7 @@ export default function HomePage() {
           <div className="grid lg:grid-cols-2 lg:items-stretch">
             <div className="relative aspect-[5/4] min-h-[240px] w-full sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[320px]">
               <Image
-                src="https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?auto=format&fit=crop&w=1200&q=80"
+                src={appPromoSectionImage}
                 alt="Customer using smartphone"
                 fill
                 className="object-cover"
@@ -418,6 +425,17 @@ export default function HomePage() {
 
       <section className="border-y border-border/60 bg-background py-20 md:py-24">
         <div className="container mx-auto px-4">
+          {countriesSectionImage && (
+            <div className="mb-8 overflow-hidden rounded-3xl border border-border/70">
+              <Image
+                src={countriesSectionImage}
+                alt="Countries section"
+                width={1600}
+                height={480}
+                className="h-40 w-full object-cover md:h-52"
+              />
+            </div>
+          )}
           <div className="mb-10 flex flex-col gap-3 text-center md:flex-row md:items-end md:justify-between md:text-left">
             <div>
               <h3 className="text-3xl font-bold tracking-tight">Popular destinations</h3>
@@ -462,6 +480,17 @@ export default function HomePage() {
 
       <section className="py-20 md:py-24">
         <div className="container mx-auto max-w-3xl px-4">
+          {faqSectionImage && (
+            <div className="mb-8 overflow-hidden rounded-3xl border border-border/70">
+              <Image
+                src={faqSectionImage}
+                alt="FAQ section"
+                width={1200}
+                height={400}
+                className="h-40 w-full object-cover md:h-48"
+              />
+            </div>
+          )}
           <h2 className="mb-10 text-balance text-center text-3xl font-bold tracking-tight md:text-4xl">
             {content.faq.title}
           </h2>

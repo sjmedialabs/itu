@@ -46,28 +46,39 @@ import {
 import { 
   getAllProviders, 
   getProviderStats,
+  getCoverageRows,
+  getLatestRefreshRun,
+  refreshAggregatorData,
+  setProviderActive,
   type Provider 
 } from '@/lib/api/lcr-engine'
 
 export default function AdminProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>(getAllProviders())
-  const [stats] = useState(getProviderStats())
+  const [stats, setStats] = useState(getProviderStats())
+  const [coverageRows, setCoverageRows] = useState(getCoverageRows())
+  const [latestRefresh, setLatestRefresh] = useState(getLatestRefreshRun())
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleRefreshHealth = async () => {
     setIsRefreshing(true)
-    // Simulate health check
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await refreshAggregatorData({ source: 'manual', maxAttempts: 2 })
     setProviders(getAllProviders())
+    setStats(getProviderStats())
+    setCoverageRows(getCoverageRows())
+    setLatestRefresh(getLatestRefreshRun())
     setIsRefreshing(false)
   }
 
   const handleToggleProvider = (providerId: string) => {
-    setProviders(providers.map(p => 
-      p.id === providerId ? { ...p, isActive: !p.isActive } : p
-    ))
+    const provider = providers.find((p) => p.id === providerId)
+    if (!provider) return
+    setProviderActive(providerId, !provider.isActive)
+    setProviders(getAllProviders())
+    setStats(getProviderStats())
+    setCoverageRows(getCoverageRows())
   }
 
   const getStatusBadge = (status: string) => {
@@ -216,6 +227,42 @@ export default function AdminProvidersPage() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Scheduled Refresh Status</CardTitle>
+          <CardDescription>Daily refresh window: 01:00 - 03:00 server time.</CardDescription>
+        </CardHeader>
+        <CardContent className="text-sm">
+          {latestRefresh ? (
+            <div className="grid gap-2 md:grid-cols-2">
+              <p>
+                <span className="text-muted-foreground">Last run:</span>{' '}
+                {new Date(latestRefresh.endedAt).toLocaleString('en-GB', { hour12: false })}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Status:</span>{' '}
+                <Badge
+                  variant="outline"
+                  className={
+                    latestRefresh.status === 'success'
+                      ? 'bg-green-100 text-green-700'
+                      : latestRefresh.status === 'partial'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-red-100 text-red-700'
+                  }
+                >
+                  {latestRefresh.status}
+                </Badge>
+              </p>
+              <p><span className="text-muted-foreground">Attempts:</span> {latestRefresh.attempts}/{latestRefresh.maxAttempts}</p>
+              <p><span className="text-muted-foreground">Source:</span> {latestRefresh.source}</p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">No refresh has run yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Providers Table */}
       <Card>
         <CardHeader>
@@ -297,6 +344,55 @@ export default function AdminProvidersPage() {
                     </TableCell>
                   </TableRow>
                 ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Coverage Matrix</CardTitle>
+          <CardDescription>
+            Country → Operator → Supported aggregators. Unsupported APIs are excluded automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Country</TableHead>
+                  <TableHead>Operator</TableHead>
+                  <TableHead>Supported Aggregators</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {coverageRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="py-6 text-center text-muted-foreground">
+                      No coverage records found.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  coverageRows.map((row) => (
+                    <TableRow key={`${row.countryCode}-${row.operatorCode}`}>
+                      <TableCell>{row.countryCode}</TableCell>
+                      <TableCell>{row.operatorCode}</TableCell>
+                      <TableCell>
+                        {row.providerCodes.length === 0 ? (
+                          <Badge variant="outline" className="bg-red-50 text-red-700">No support</Badge>
+                        ) : (
+                          row.providerCodes.map((code) => (
+                            <Badge key={code} variant="outline" className="mr-1 mb-1">
+                              {code}
+                            </Badge>
+                          ))
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

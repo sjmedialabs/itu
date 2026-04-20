@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
-import { Bricolage_Grotesque, Lobster_Two } from 'next/font/google'
+import { Bricolage_Grotesque, Roboto_Slab } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
 const bodyFont = Bricolage_Grotesque({
@@ -12,10 +13,9 @@ const bodyFont = Bricolage_Grotesque({
   axes: ['opsz'],
 })
 
-const titleFont = Lobster_Two({
+const titleFont = Roboto_Slab({
   subsets: ['latin'],
-  weight: ['400', '700'],
-  style: ['normal', 'italic'],
+  weight: ['400', '500', '600', '700'],
   variable: '--font-title',
   display: 'swap',
 })
@@ -25,21 +25,8 @@ export const metadata: Metadata = {
   description: 'Send mobile recharges instantly to 150+ countries with the best rates',
   generator: 'v0.app',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/itu-logo.png',
+    apple: '/itu-logo.png',
   },
 }
 
@@ -62,6 +49,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
+          <Toaster position="top-center" richColors />
         </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

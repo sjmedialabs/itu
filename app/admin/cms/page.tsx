@@ -65,6 +65,7 @@ export default function CMSPage() {
     updateTopupCard, 
     updateAppPromo,
     updateFAQ,
+    updateCountriesSection,
     addFAQItem,
     updateFAQItem,
     deleteFAQItem,
@@ -82,6 +83,20 @@ export default function CMSPage() {
   const [editingCountry, setEditingCountry] = useState<PopularCountry | null>(null)
   const [newCountry, setNewCountry] = useState({ code: '', name: '', flag: '', dialCode: '' })
 
+  const fileToDataUrl = async (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+
+  const handleUpload = async (file: File | undefined, onDone: (url: string) => void) => {
+    if (!file) return
+    const dataUrl = await fileToDataUrl(file)
+    if (dataUrl) onDone(dataUrl)
+  }
+
   const handleSave = async () => {
     setSaveStatus('saving')
     // Simulate API call
@@ -92,14 +107,14 @@ export default function CMSPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-4 sm:p-5 lg:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Website CMS</h1>
           <p className="text-muted-foreground">Manage all website content, images, and sections</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" asChild>
             <Link href="/" target="_blank" className="gap-2">
               <Eye className="h-4 w-4" />
@@ -217,6 +232,11 @@ export default function CMSPage() {
                   placeholder="https://..."
                 />
                 <p className="text-xs text-muted-foreground">Enter an image URL or upload to your media library</p>
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handleUpload(e.target.files?.[0], (url) => updateHero({ backgroundImage: url }))}
+                />
               </div>
 
               {content.hero.backgroundImage && (
@@ -285,6 +305,27 @@ export default function CMSPage() {
                   />
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="topup-section-image">Section Image URL</Label>
+                <Input
+                  id="topup-section-image"
+                  value={content.topupCard.sectionImage || ''}
+                  onChange={(e) => updateTopupCard({ sectionImage: e.target.value })}
+                  placeholder="https://..."
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handleUpload(e.target.files?.[0], (url) => updateTopupCard({ sectionImage: url }))}
+                />
+              </div>
+
+              {content.topupCard.sectionImage && (
+                <div className="relative h-40 overflow-hidden rounded-lg border">
+                  <img src={content.topupCard.sectionImage} alt="Top-up section preview" className="h-full w-full object-cover" />
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <Label>Show Vouchers Option</Label>
                 <Switch
@@ -432,6 +473,21 @@ export default function CMSPage() {
                   id="faq-title"
                   value={content.faq.title}
                   onChange={(e) => updateFAQ({ title: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="faq-image">FAQ Image URL</Label>
+                <Input
+                  id="faq-image"
+                  value={content.faq.sectionImage || ''}
+                  onChange={(e) => updateFAQ({ sectionImage: e.target.value })}
+                  placeholder="https://..."
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handleUpload(e.target.files?.[0], (url) => updateFAQ({ sectionImage: url }))}
                 />
               </div>
 
@@ -615,7 +671,32 @@ export default function CMSPage() {
                 </Dialog>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="countries-image">Countries Section Image URL</Label>
+                <Input
+                  id="countries-image"
+                  value={content.countriesSection?.sectionImage || ''}
+                  onChange={(e) => updateCountriesSection({ sectionImage: e.target.value })}
+                  placeholder="https://..."
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handleUpload(e.target.files?.[0], (url) => updateCountriesSection({ sectionImage: url }))}
+                />
+              </div>
+
+              {content.countriesSection?.sectionImage && (
+                <div className="relative h-40 overflow-hidden rounded-lg border">
+                  <img
+                    src={content.countriesSection.sectionImage}
+                    alt="Countries section preview"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )}
+
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -713,6 +794,27 @@ export default function CMSPage() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="app-image">App Promo Image URL</Label>
+                <Input
+                  id="app-image"
+                  value={content.appPromo.sectionImage || ''}
+                  onChange={(e) => updateAppPromo({ sectionImage: e.target.value })}
+                  placeholder="https://..."
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handleUpload(e.target.files?.[0], (url) => updateAppPromo({ sectionImage: url }))}
+                />
+              </div>
+
+              {content.appPromo.sectionImage && (
+                <div className="relative h-40 overflow-hidden rounded-lg border">
+                  <img src={content.appPromo.sectionImage} alt="App promo preview" className="h-full w-full object-cover" />
+                </div>
+              )}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-center justify-between p-3 rounded-lg border">
                   <div>
@@ -784,6 +886,21 @@ export default function CMSPage() {
                   id="trust-badge"
                   value={content.footer.trustBadgeText}
                   onChange={(e) => updateFooter({ trustBadgeText: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="footer-bg-image">Footer Background Image URL</Label>
+                <Input
+                  id="footer-bg-image"
+                  value={content.footer.backgroundImage || ''}
+                  onChange={(e) => updateFooter({ backgroundImage: e.target.value })}
+                  placeholder="https://..."
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handleUpload(e.target.files?.[0], (url) => updateFooter({ backgroundImage: url }))}
                 />
               </div>
 

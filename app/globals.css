@@ -146,7 +146,7 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-title), ui-serif, Georgia, cursive;
+    font-family: var(--font-title), ui-serif, Georgia, serif;
     @apply tracking-tight text-balance;
   }
 
@@ -158,13 +158,13 @@
   [data-slot='alert-title'],
   [data-slot='empty-title'],
   [data-slot='item-title'] {
-    font-family: var(--font-title), ui-serif, Georgia, cursive;
+    font-family: var(--font-title), ui-serif, Georgia, serif;
   }
 }
 
 @layer utilities {
-  .font-lobster {
-    font-family: var(--font-title), ui-serif, Georgia, cursive;
+  .font-title-logo {
+    font-family: var(--font-title), ui-serif, Georgia, serif;
   }
 
   .shadow-elevated {

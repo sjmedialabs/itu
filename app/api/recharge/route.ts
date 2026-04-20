@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { isApiConfigured, sendTransfer } from '@/lib/api/ding-connect'
+import { executeRechargeWithFailover, selectBestProviderWithObservability } from '@/lib/api/lcr-engine'
 
 export async function POST(request: Request) {
   try {
@@ -31,10 +32,51 @@ export async function POST(request: Request) {
     const serviceFee = 0.50
     const totalAmount = sendAmount + serviceFee
 
+    const routingCountryCode =
+      typeof countryCode === 'string' && /^[A-Z]{2}$/.test(countryCode)
+        ? countryCode
+        : typeof body.countryIso === 'string' && /^[A-Z]{2}$/.test(body.countryIso)
+          ? body.countryIso
+          : 'IN'
+    const normalizedOperator = typeof carrierCode === 'string' && carrierCode.includes('_')
+      ? carrierCode.split('_')[0]
+      : carrierCode
+    const lcrDecision = await selectBestProviderWithObservability(
+      routingCountryCode,
+      normalizedOperator || '',
+      skuCode,
+      { timeoutMs: 4500, weighted: true },
+    )
+    if (!lcrDecision.selected) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No active supported aggregator for this country/operator',
+          lcr: lcrDecision,
+        },
+        { status: 400 },
+      )
+    }
+
     // If API is not configured, return mock success
     if (!isApiConfigured()) {
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      const execution = await executeRechargeWithFailover(
+        {
+          id: distributorRef,
+          phoneNumber,
+          countryCode,
+          carrierCode,
+          carrierName,
+          skuCode,
+        },
+        lcrDecision.selected,
+      )
+      if (!execution.success) {
+        return NextResponse.json(
+          { success: false, error: execution.errorCode || 'All providers failed', lcr: lcrDecision },
+          { status: 502 },
+        )
+      }
 
       const mockOrder = {
         id: distributorRef,
@@ -51,16 +93,22 @@ export async function POST(request: Request) {
         serviceFee,
         totalAmount,
         status: 'completed',
-        providerRef: `DING-${Date.now()}`,
+        providerRef: execution.providerRef || `${lcrDecision.selected.providerCode}-${Date.now()}`,
         distributorRef,
         createdAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
         rewardPointsEarned: Math.floor(sendAmount),
+        routing: {
+          selectedProvider: lcrDecision.selected.providerCode,
+          fallbackOrder: lcrDecision.fallbackOrder,
+          evaluated: lcrDecision.evaluated,
+        },
       }
 
       return NextResponse.json({
         success: true,
         order: mockOrder,
+        lcr: lcrDecision,
         message: 'Recharge completed successfully',
       })
     }
@@ -124,6 +172,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       order,
+      lcr: lcrDecision,
       message: 'Recharge processed successfully',
     })
   } catch (error) {

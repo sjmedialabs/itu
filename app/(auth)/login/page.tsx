@@ -3,13 +3,14 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Crown, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useAuthStore } from "@/lib/stores"
+import { ItuLogoMark } from "@/components/itu-logo-mark"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -45,10 +46,8 @@ export default function LoginPage() {
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <Link href="/" className="flex items-center gap-2">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-600">
-                <Crown className="size-6 text-white" />
-              </div>
-              <span className="text-xl font-bold">ITU</span>
+              <ItuLogoMark />
+              <span className="font-title-logo text-xl font-bold">ITU</span>
             </Link>
           </div>
           <CardTitle className="text-2xl">Welcome back</CardTitle>

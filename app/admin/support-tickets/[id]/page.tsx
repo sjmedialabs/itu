@@ -1,0 +1,339 @@
+'use client'
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useParams, useRouter } from 'next/navigation'
+import { format } from 'date-fns'
+import { ArrowLeft, Loader2, Send, StickyNote } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { useAuthStore } from '@/lib/stores'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { TicketStatusBadge } from '@/components/ticket-status-badge'
+import { TicketThread } from '@/components/ticket-thread'
+import {
+  apiAdminAddNote,
+  apiAdminGetTicket,
+  apiAdminRespond,
+  apiAdminSetStatus,
+} from '@/lib/tickets/client-api'
+import type { TicketAdminDetail, TicketStatus } from '@/lib/tickets/types'
+import { toast } from 'sonner'
+import { mockRechargeOrders, mockUsers } from '@/lib/mock-data'
+
+export default function AdminSupportTicketDetailPage() {
+  const router = useRouter()
+  const params = useParams()
+  const id = typeof params.id === 'string' ? params.id : ''
+  const user = useAuthStore((s) => s.user)
+  const headers = useMemo(
+    () =>
+      user
+        ? { id: user.id, email: user.email, name: user.name, role: user.role }
+        : null,
+    [user],
+  )
+
+  const [data, setData] = useState<TicketAdminDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [reply, setReply] = useState('')
+  const [note, setNote] = useState('')
+  const [statusPick, setStatusPick] = useState<TicketStatus>('open')
+  const [sending, setSending] = useState(false)
+  const [savingStatus, setSavingStatus] = useState(false)
+  const [savingNote, setSavingNote] = useState(false)
+
+  useEffect(() => {
+    if (user && user.role !== 'admin') {
+      toast.error('Admins only')
+      router.replace('/account')
+    }
+  }, [user, router])
+
+  const load = useCallback(async () => {
+    if (!headers || !id) return
+    setLoading(true)
+    try {
+      const t = await apiAdminGetTicket(headers, id)
+      setData(t)
+      setStatusPick(t.status)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load ticket')
+      setData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [headers, id])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  async function onRespond(e: React.FormEvent) {
+    e.preventDefault()
+    if (!headers || !id || !reply.trim()) return
+    setSending(true)
+    try {
+      await apiAdminRespond(headers, id, reply.trim())
+      setReply('')
+      toast.success('Reply sent — status set to In progress (if not resolved)')
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  async function onSaveStatus() {
+    if (!headers || !id) return
+    setSavingStatus(true)
+    try {
+      await apiAdminSetStatus(headers, id, statusPick)
+      toast.success('Status updated')
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Update failed')
+    } finally {
+      setSavingStatus(false)
+    }
+  }
+
+  async function onSaveNote(e: React.FormEvent) {
+    e.preventDefault()
+    if (!headers || !id || !note.trim()) return
+    setSavingNote(true)
+    try {
+      await apiAdminAddNote(headers, id, note.trim())
+      setNote('')
+      toast.success('Internal note saved')
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save note')
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  if (!headers) return null
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20 text-muted-foreground">
+        <Loader2 className="size-8 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" asChild className="gap-2">
+          <Link href="/admin/support-tickets">
+            <ArrowLeft className="size-4" />
+            Back
+          </Link>
+        </Button>
+        <p className="text-muted-foreground">Ticket not found.</p>
+      </div>
+    )
+  }
+
+  const canPublicReply = data.status !== 'resolved'
+  const transaction = data.transactionId
+    ? mockRechargeOrders.find((x) => x.id === data.transactionId)
+    : null
+  const txnUser = transaction?.userId ? mockUsers.find((x) => x.id === transaction.userId) : null
+  const routingVariant = transaction ? transaction.id.charCodeAt(transaction.id.length - 1) % 3 : 0
+  const routingType = routingVariant === 0 ? 'Dedicated' : routingVariant === 1 ? 'Cheapest' : 'Fallback'
+
+  const formatMoney = (amount?: number, currency?: string) => {
+    if (typeof amount !== 'number') return '—'
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency || 'USD',
+    }).format(amount)
+  }
+
+  return (
+    <div className="space-y-8">
+      <Button variant="ghost" size="sm" asChild className="w-fit gap-2 px-0 text-muted-foreground hover:text-foreground">
+        <Link href="/admin/support-tickets">
+          <ArrowLeft className="size-4" />
+          Support Tickets
+        </Link>
+      </Button>
+
+      <div className="flex flex-col gap-4 border-b border-border/60 pb-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 space-y-2">
+          <p className="font-mono text-xs text-muted-foreground">{data.id}</p>
+          <h1 className="text-2xl font-bold tracking-tight">{data.subject}</h1>
+          <p className="text-sm text-muted-foreground">
+            Created {format(new Date(data.createdAt), 'MMM d, yyyy HH:mm')} · Updated{' '}
+            {format(new Date(data.updatedAt), 'MMM d, yyyy HH:mm')}
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/80 p-4 shadow-elevated-sm lg:w-[280px]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">Status</span>
+            <TicketStatusBadge status={data.status} />
+          </div>
+          <Select value={statusPick} onValueChange={(v) => setStatusPick(v as TicketStatus)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="in_progress">In progress</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button type="button" size="sm" onClick={() => void onSaveStatus()} disabled={savingStatus || statusPick === data.status}>
+            {savingStatus ? <Loader2 className="size-4 animate-spin" /> : 'Save status'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-6">
+          <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-elevated-sm">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Customer</h2>
+            <dl className="grid gap-2 text-sm">
+              <div>
+                <dt className="text-muted-foreground">Name</dt>
+                <dd className="font-medium">{data.userName || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Email</dt>
+                <dd className="font-medium">{data.userEmail || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">User ID</dt>
+                <dd className="font-mono text-xs">{data.userId}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Thread</h2>
+            <TicketThread description={data.description} messages={data.messages} variant="admin" />
+          </section>
+
+          <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-elevated-sm">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Linked Transaction</h2>
+            {!data.transactionId ? (
+              <p className="text-sm text-muted-foreground">No transaction linked to this ticket.</p>
+            ) : !transaction ? (
+              <div className="space-y-2 text-sm">
+                <p className="text-muted-foreground">Linked transaction ID</p>
+                <p className="font-mono">{data.transactionId}</p>
+                <p className="text-muted-foreground">Transaction details not found in current dataset.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                  <p><span className="text-muted-foreground">Transaction ID:</span> <span className="font-mono">{transaction.id}</span></p>
+                  <p><span className="text-muted-foreground">Date & Time:</span> {format(new Date(transaction.createdAt), 'MMM d, yyyy HH:mm')}</p>
+                  <p>
+                    <span className="text-muted-foreground">Status:</span>{' '}
+                    <Badge variant="outline">{transaction.status}</Badge>
+                  </p>
+                  <p><span className="text-muted-foreground">Amount:</span> {formatMoney(transaction.senderAmount, transaction.senderCurrency)}</p>
+                  <p><span className="text-muted-foreground">Currency:</span> {transaction.senderCurrency}</p>
+                  <p><span className="text-muted-foreground">Destination Country:</span> {transaction.countryName}</p>
+                  <p><span className="text-muted-foreground">Network / Operator:</span> {transaction.providerName}</p>
+                  <p><span className="text-muted-foreground">Mobile Number:</span> {transaction.countryCode} {transaction.phoneNumber}</p>
+                  <p><span className="text-muted-foreground">Payment Method:</span> {transaction.paymentMethod || '—'}</p>
+                  <p><span className="text-muted-foreground">Payment Status:</span> {transaction.status}</p>
+                  <p><span className="text-muted-foreground">Payment Reference ID:</span> <span className="font-mono">{transaction.id}-payref</span></p>
+                  <p><span className="text-muted-foreground">Gateway Response:</span> {transaction.errorMessage || (transaction.status === 'completed' ? 'Approved' : 'Pending')}</p>
+                  <p><span className="text-muted-foreground">Provider Used:</span> {transaction.providerName}</p>
+                  <p><span className="text-muted-foreground">Routing Type:</span> {routingType}</p>
+                  <p><span className="text-muted-foreground">API Response Status:</span> {transaction.status === 'completed' ? 'SUCCESS' : transaction.status === 'failed' ? 'FAILED' : 'PENDING'}</p>
+                  <p><span className="text-muted-foreground">Customer Name:</span> {txnUser?.name || data.userName || '—'}</p>
+                  <p><span className="text-muted-foreground">Customer Email:</span> {txnUser?.email || data.userEmail || '—'}</p>
+                  <p><span className="text-muted-foreground">Customer Country:</span> {txnUser?.countryCode || '—'}</p>
+                </div>
+
+                {(transaction.status === 'failed' || transaction.errorMessage) && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm">
+                    <p><span className="text-muted-foreground">Error Message:</span> {transaction.errorMessage || '—'}</p>
+                    <p><span className="text-muted-foreground">Failure Reason:</span> {transaction.errorMessage || 'Provider unavailable'}</p>
+                    <p><span className="text-muted-foreground">Retry Attempts:</span> 1</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-border/70 bg-card/80 p-4 shadow-elevated-sm">
+            <h2 className="mb-3 text-sm font-semibold">Reply to customer</h2>
+            {canPublicReply ? (
+              <form onSubmit={onRespond} className="flex flex-col gap-3">
+                <Textarea
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  placeholder="Your public reply…"
+                  rows={4}
+                  className="resize-y min-h-[100px]"
+                />
+                <Button type="submit" disabled={sending || !reply.trim()} className="w-fit gap-2">
+                  {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                  Send reply
+                </Button>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Ticket is resolved — public replies are disabled. Re-open by setting status to Open or In progress, or use
+                internal notes.
+              </p>
+            )}
+          </section>
+        </div>
+
+        <aside className="space-y-4">
+          <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/25">
+            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-100">
+              <StickyNote className="size-4" />
+              Internal notes
+            </div>
+            <p className="mb-3 text-xs text-amber-900/80 dark:text-amber-200/80">Visible to admins only.</p>
+            <ul className="mb-4 max-h-48 space-y-2 overflow-y-auto text-sm">
+              {data.notes.length === 0 ? (
+                <li className="text-muted-foreground">No notes yet.</li>
+              ) : (
+                data.notes.map((n) => (
+                  <li key={n.id} className="rounded-lg border border-amber-200/50 bg-background/80 px-3 py-2 dark:border-amber-900/30">
+                    <p className="whitespace-pre-wrap text-foreground">{n.note}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {n.createdBy} · {format(new Date(n.createdAt), 'MMM d, HH:mm')}
+                    </p>
+                  </li>
+                ))
+              )}
+            </ul>
+            <form onSubmit={onSaveNote} className="space-y-2">
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Add internal note…"
+                rows={3}
+                className="resize-y bg-background/90"
+              />
+              <Button type="submit" size="sm" variant="secondary" disabled={savingNote || !note.trim()}>
+                {savingNote ? <Loader2 className="size-4 animate-spin" /> : 'Save note'}
+              </Button>
+            </form>
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}

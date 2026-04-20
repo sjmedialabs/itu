@@ -5,10 +5,11 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore } from '@/lib/stores'
 import { cn } from '@/lib/utils'
-import { User, History, Wallet, Gift, Settings, Shield } from 'lucide-react'
+import { User, History, Wallet, Gift, Settings, Shield, MessageSquare } from 'lucide-react'
 
 const accountNavItems = [
   { href: '/account', label: 'Profile', icon: User },
+  { href: '/account/tickets', label: 'My Support Tickets', icon: MessageSquare },
   { href: '/account/transactions', label: 'Transactions', icon: History },
   { href: '/account/wallet', label: 'Wallet', icon: Wallet },
   { href: '/account/rewards', label: 'Rewards', icon: Gift },
@@ -33,7 +34,7 @@ export default function AccountLayout({
 
   if (!isAuthenticated) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-4 py-12">
+      <div className="w-full px-4 py-12 sm:px-6">
         <div className="flex items-center justify-center">
           <p className="text-muted-foreground">Loading...</p>
         </div>
@@ -43,8 +44,8 @@ export default function AccountLayout({
 
   return (
     <div className="border-b border-border/60 bg-mesh">
-      <div className="mx-auto w-full max-w-6xl px-4 py-10 md:py-12">
-        <div className="mx-auto grid w-full max-w-5xl gap-8 lg:grid-cols-[260px_1fr] lg:gap-10">
+      <div className="w-full px-4 py-10 md:py-12 sm:px-6">
+        <div className="grid w-full gap-8 lg:grid-cols-[260px_1fr] lg:gap-10">
           <aside className="h-fit rounded-2xl border border-border/70 bg-card/90 p-4 shadow-elevated-sm backdrop-blur-sm lg:sticky lg:top-24">
             <h2 className="mb-4 px-2 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">My Account</h2>
             <nav className="flex flex-col gap-1">

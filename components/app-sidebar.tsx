@@ -12,12 +12,14 @@ import {
   HelpCircle,
   Moon,
   Sun,
-  Crown,
-  Smartphone,
   Wallet,
   Globe,
   Route,
   FileEdit,
+  MessageSquare,
+  Megaphone,
+  FileSpreadsheet,
+  ChartNoAxesCombined,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -36,17 +38,13 @@ import {
 
 import { useUIStore } from '@/lib/stores'
 import { cn } from '@/lib/utils'
+import { ItuLogoMark } from '@/components/itu-logo-mark'
 
 const mainMenuItems = [
   {
     title: 'Dashboard',
     url: '/admin',
     icon: LayoutDashboard,
-  },
-  {
-    title: 'Transactions',
-    url: '/admin/transactions',
-    icon: Smartphone,
   },
   {
     title: 'Providers',
@@ -72,6 +70,26 @@ const mainMenuItems = [
     title: 'Customers',
     url: '/admin/customers',
     icon: Users,
+  },
+  {
+    title: 'Support Tickets',
+    url: '/admin/support-tickets',
+    icon: MessageSquare,
+  },
+  {
+    title: 'Ads Manager',
+    url: '/admin/ads',
+    icon: Megaphone,
+  },
+  {
+    title: 'Reconciliation',
+    url: '/admin/reconciliation',
+    icon: FileSpreadsheet,
+  },
+  {
+    title: 'Reports & Analytics',
+    url: '/admin/reports',
+    icon: ChartNoAxesCombined,
   },
   {
     title: 'Analytics',
@@ -106,12 +124,10 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-border/70 bg-sidebar shadow-elevated-sm">
       <SidebarHeader className="border-b border-sidebar-border/80 p-4">
         <Link href="/admin" className="flex items-center gap-3 rounded-xl px-1 py-0.5 transition-colors hover:bg-sidebar-accent/60">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-elevated-sm ring-2 ring-primary/15">
-            <Crown className="size-5" />
-          </div>
+          <ItuLogoMark className="rounded-xl" />
           <div className="group-data-[collapsible=icon]:hidden">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Console</p>
-            <span className="text-lg font-semibold tracking-tight">ITU</span>
+            <span className="font-title-logo text-lg font-semibold tracking-tight">ITU</span>
           </div>
         </Link>
       </SidebarHeader>

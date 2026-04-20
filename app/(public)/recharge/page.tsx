@@ -35,7 +35,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { useRechargeStore, useAuthStore } from '@/lib/stores'
+import { useRechargeStore, useAuthStore, useLocalePreferencesStore } from '@/lib/stores'
 import { mockCarriers, mockProducts } from '@/lib/mock-data'
 import type { Carrier, Product } from '@/lib/types'
 
@@ -49,6 +49,7 @@ const steps = [
 export default function RechargePage() {
   const router = useRouter()
   const { isAuthenticated } = useAuthStore()
+  const { currencyCode } = useLocalePreferencesStore()
   const {
     selectedCountry,
     selectedCarrier,
@@ -71,6 +72,28 @@ export default function RechargePage() {
   const [carriers, setCarriers] = useState<Carrier[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [productFilter, setProductFilter] = useState<'all' | 'data' | 'voice' | 'combo'>('all')
+
+  const fxRates: Record<string, number> = {
+    USD: 1,
+    EUR: 0.92,
+    GBP: 0.79,
+    INR: 83.2,
+    NGN: 1590,
+    PHP: 57.1,
+    MXN: 16.8,
+    BDT: 117.4,
+    PKR: 278,
+    GHS: 14.2,
+    KES: 129.5,
+  }
+
+  const convertUsd = (amountUsd: number) => amountUsd * (fxRates[currencyCode] ?? 1)
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currencyCode,
+      maximumFractionDigits: currencyCode === 'JPY' ? 0 : 2,
+    }).format(amount)
 
   // Redirect if no country selected
   useEffect(() => {
@@ -416,9 +439,7 @@ export default function RechargePage() {
                     {/* Price */}
                     <div className="flex items-end justify-between">
                       <div>
-                        <p className="text-2xl font-bold text-primary">
-                          ${product.minSendAmount.toFixed(2)}
-                        </p>
+                        <p className="text-2xl font-bold text-primary">{formatCurrency(convertUsd(product.minSendAmount))}</p>
                         <p className="text-xs text-muted-foreground">
                           {product.minReceiveAmount} {product.receiveCurrency}
                         </p>
@@ -494,17 +515,17 @@ export default function RechargePage() {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span>Top-up Amount</span>
-                  <span>${selectedProduct.minSendAmount.toFixed(2)}</span>
+                  <span>{formatCurrency(convertUsd(selectedProduct.minSendAmount))}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Service Fee</span>
-                  <span>$0.50</span>
+                  <span>{formatCurrency(convertUsd(0.5))}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total</span>
                   <span className="text-primary">
-                    ${(selectedProduct.minSendAmount + 0.50).toFixed(2)}
+                    {formatCurrency(convertUsd(selectedProduct.minSendAmount + 0.5))}
                   </span>
                 </div>
               </div>
@@ -547,7 +568,7 @@ export default function RechargePage() {
                     </>
                   ) : (
                     <>
-                      Pay ${(selectedProduct.minSendAmount + 0.50).toFixed(2)}
+                      Pay {formatCurrency(convertUsd(selectedProduct.minSendAmount + 0.5))}
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
