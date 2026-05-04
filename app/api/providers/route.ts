@@ -1,38 +1,35 @@
 import { NextResponse } from 'next/server'
-import { getProvidersWithFallback } from '@/lib/api/ding-connect'
+import { dbFetchOperators } from '@/lib/db/catalog'
+import { guardCatalog } from '@/lib/db/require-catalog'
 
 export async function GET(request: Request) {
+  const denied = guardCatalog()
+  if (denied) return denied
+
   try {
     const { searchParams } = new URL(request.url)
     const countryCode = searchParams.get('countryCode')
 
     if (!countryCode) {
-      return NextResponse.json(
-        { error: 'Country code is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Country code is required' }, { status: 400 })
     }
 
-    const providers = await getProvidersWithFallback(countryCode)
+    const rows = await dbFetchOperators(countryCode)
 
-    // Transform to app-friendly format
-    const formattedProviders = providers.map(p => ({
-      id: `carrier-${p.ProviderCode.toLowerCase().replace(/_/g, '-')}`,
-      code: p.ProviderCode,
-      name: p.Name,
-      shortName: p.ShortName,
-      logo: p.LogoUrl,
-      countryCode: p.CountryIso,
-      validationRegex: p.ValidationRegex,
-      regionCode: p.RegionCode,
+    const providers = rows.map((p) => ({
+      id: `carrier-${p.code.toLowerCase().replace(/_/g, '-')}`,
+      code: p.code,
+      name: p.name,
+      shortName: p.short_name ?? p.name,
+      logo: p.logo_url,
+      countryCode: p.country_iso,
+      validationRegex: p.validation_regex,
+      regionCode: p.region_code,
     }))
 
-    return NextResponse.json({ providers: formattedProviders })
+    return NextResponse.json({ providers })
   } catch (error) {
-    console.error('Error fetching providers:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch providers' },
-      { status: 500 }
-    )
+    console.error('providers:', error)
+    return NextResponse.json({ error: 'Failed to fetch providers' }, { status: 500 })
   }
 }

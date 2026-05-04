@@ -317,9 +317,11 @@ interface LocalePreferencesState {
   regionCode: string
   languageCode: string
   currencyCode: string
+  manualOverride: boolean
   setRegion: (code: string) => void
   setLanguage: (code: string) => void
   setCurrency: (code: string) => void
+  setManualOverride: (manual: boolean) => void
 }
 
 export const useLocalePreferencesStore = create<LocalePreferencesState>()(
@@ -328,9 +330,11 @@ export const useLocalePreferencesStore = create<LocalePreferencesState>()(
       regionCode: 'IN',
       languageCode: 'en',
       currencyCode: 'USD',
+      manualOverride: false,
       setRegion: (code) => set({ regionCode: code }),
       setLanguage: (code) => set({ languageCode: code }),
       setCurrency: (code) => set({ currencyCode: code }),
+      setManualOverride: (manual) => set({ manualOverride: manual }),
     }),
     { name: 'itu-locale-prefs' },
   ),

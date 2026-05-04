@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { useAdminToolsStore, isAdLive } from '@/lib/admin-tools-store'
 import { useAuthStore, useLocalePreferencesStore, useWalletStore } from '@/lib/stores'
 import { X } from 'lucide-react'
@@ -65,7 +64,12 @@ export function TargetedAdBanner() {
     }
     const key = `ad-modal-dismissed:${ad.ad.id}`
     const dismissed = window.sessionStorage.getItem(key) === '1'
-    setOpen(!dismissed)
+    if (dismissed) {
+      setOpen(false)
+      return
+    }
+    const t = window.setTimeout(() => setOpen(true), 400)
+    return () => window.clearTimeout(t)
   }, [ad?.ad.id])
 
   const closeModal = () => {
@@ -80,50 +84,42 @@ export function TargetedAdBanner() {
 
   if (!isHydrated || !ad || !open) return null
 
+  const href = ad.ad.ctaUrl?.trim() || '/recharge'
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-8">
       <button
         type="button"
-        aria-label="Close offer"
-        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+        aria-label="Close advertisement"
+        className="absolute inset-0 bg-black/55 backdrop-blur-[2px]"
         onClick={closeModal}
       />
-      <aside className="relative z-[1] w-full max-w-2xl overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-elevated">
+      <aside className="relative z-[1] w-full max-w-[min(100%,540px)]">
         <button
           type="button"
-          className="absolute right-3 top-3 z-[2] rounded-full bg-black/50 p-1.5 text-white transition hover:bg-black/70"
+          className="absolute right-2 top-2 z-[3] flex size-10 items-center justify-center rounded-full bg-white text-neutral-900 shadow-lg ring-1 ring-black/10 transition hover:bg-neutral-100 sm:right-3 sm:top-3"
           onClick={closeModal}
-          aria-label="Close ad"
+          aria-label="Close"
         >
-          <X className="h-4 w-4" />
+          <X className="size-5" strokeWidth={2} />
         </button>
         <Link
-          href={ad.ad.ctaUrl || '/recharge'}
-          className="group block"
+          href={href}
+          className="group relative block overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10"
           onClick={closeModal}
         >
+          <span className="sr-only">{ad.ad.title}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element -- admin-provided arbitrary URLs */}
           <img
             src={ad.ad.imageUrl}
-            alt={ad.ad.title}
-            className="h-48 w-full object-cover sm:h-56"
-            loading="lazy"
+            alt=""
+            className="max-h-[min(85vh,720px)] w-full object-contain bg-neutral-950"
+            loading="eager"
             decoding="async"
             onError={() => {
               setFailedAdIds((prev) => (prev.includes(ad.ad.id) ? prev : [...prev, ad.ad.id]))
             }}
           />
-          <div className="flex items-center justify-between gap-3 p-4 sm:p-5">
-            <div className="space-y-1">
-              <Badge variant="secondary" className="bg-primary/10 text-primary">
-                Destination country offer
-              </Badge>
-              <p className="text-base font-semibold tracking-tight group-hover:text-primary">{ad.ad.title}</p>
-              <p className="text-xs text-muted-foreground">
-                Matched to your frequent top-up destination: {ad.destination}
-              </p>
-            </div>
-            <span className="text-sm font-semibold text-primary">View offer</span>
-          </div>
         </Link>
       </aside>
     </div>

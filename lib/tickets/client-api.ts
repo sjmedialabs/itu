@@ -25,6 +25,7 @@ export async function apiCreateTicket(
 ) {
   const res = await fetch('/api/tickets', {
     method: 'POST',
+    credentials: 'include',
     headers: headers(user),
     body: JSON.stringify(body),
   })
@@ -34,14 +35,14 @@ export async function apiCreateTicket(
 }
 
 export async function apiListTickets(user: TicketUserHeaders) {
-  const res = await fetch('/api/tickets', { headers: headers(user) })
+  const res = await fetch('/api/tickets', { credentials: 'include', headers: headers(user) })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error ?? 'Failed to load tickets')
   return data.tickets as Ticket[]
 }
 
 export async function apiGetTicket(user: TicketUserHeaders, ticketId: string) {
-  const res = await fetch(`/api/tickets/${ticketId}`, { headers: headers(user) })
+  const res = await fetch(`/api/tickets/${ticketId}`, { credentials: 'include', headers: headers(user) })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error ?? 'Failed to load ticket')
   return data as TicketWithThread
@@ -50,6 +51,7 @@ export async function apiGetTicket(user: TicketUserHeaders, ticketId: string) {
 export async function apiPostTicketMessage(user: TicketUserHeaders, ticketId: string, message: string) {
   const res = await fetch(`/api/tickets/${ticketId}/message`, {
     method: 'POST',
+    credentials: 'include',
     headers: headers(user),
     body: JSON.stringify({ message }),
   })
@@ -62,14 +64,14 @@ export async function apiAdminListTickets(admin: TicketUserHeaders, params: { st
   const sp = new URLSearchParams()
   if (params.status && params.status !== 'all') sp.set('status', params.status)
   if (params.q?.trim()) sp.set('q', params.q.trim())
-  const res = await fetch(`/api/admin/tickets?${sp}`, { headers: headers(admin) })
+  const res = await fetch(`/api/admin/tickets?${sp}`, { credentials: 'include', headers: headers(admin) })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error ?? 'Failed to load tickets')
   return data.tickets as Ticket[]
 }
 
 export async function apiAdminGetTicket(admin: TicketUserHeaders, ticketId: string) {
-  const res = await fetch(`/api/admin/tickets/${ticketId}`, { headers: headers(admin) })
+  const res = await fetch(`/api/admin/tickets/${ticketId}`, { credentials: 'include', headers: headers(admin) })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error ?? 'Failed to load ticket')
   return data as TicketAdminDetail
@@ -78,6 +80,7 @@ export async function apiAdminGetTicket(admin: TicketUserHeaders, ticketId: stri
 export async function apiAdminRespond(admin: TicketUserHeaders, ticketId: string, message: string) {
   const res = await fetch(`/api/admin/tickets/${ticketId}/respond`, {
     method: 'POST',
+    credentials: 'include',
     headers: headers(admin),
     body: JSON.stringify({ message }),
   })
@@ -89,6 +92,7 @@ export async function apiAdminRespond(admin: TicketUserHeaders, ticketId: string
 export async function apiAdminSetStatus(admin: TicketUserHeaders, ticketId: string, status: TicketStatus) {
   const res = await fetch(`/api/admin/tickets/${ticketId}/status`, {
     method: 'PATCH',
+    credentials: 'include',
     headers: headers(admin),
     body: JSON.stringify({ status }),
   })
@@ -100,6 +104,7 @@ export async function apiAdminSetStatus(admin: TicketUserHeaders, ticketId: stri
 export async function apiAdminAddNote(admin: TicketUserHeaders, ticketId: string, note: string) {
   const res = await fetch(`/api/admin/tickets/${ticketId}/notes`, {
     method: 'POST',
+    credentials: 'include',
     headers: headers(admin),
     body: JSON.stringify({ note }),
   })

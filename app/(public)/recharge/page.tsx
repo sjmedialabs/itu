@@ -55,6 +55,8 @@ export default function RechargePage() {
     selectedCarrier,
     selectedProduct,
     phoneNumber,
+    countries,
+    setCountry,
     setCarrier,
     setProduct,
     setPhoneNumber,
@@ -95,12 +97,12 @@ export default function RechargePage() {
       maximumFractionDigits: currencyCode === 'JPY' ? 0 : 2,
     }).format(amount)
 
-  // Redirect if no country selected
+  // Ensure a default country exists (navbar Top-up should work)
   useEffect(() => {
-    if (!selectedCountry) {
-      router.push('/')
-    }
-  }, [selectedCountry, router])
+    if (selectedCountry) return
+    const fallback = countries.find((c) => c.code === 'IN') ?? countries[0] ?? null
+    if (fallback) setCountry(fallback)
+  }, [selectedCountry, countries, setCountry])
 
   // Load carriers when country is selected
   useEffect(() => {
@@ -159,9 +161,7 @@ export default function RechargePage() {
     productFilter === 'all' || p.type === productFilter
   )
 
-  if (!selectedCountry) {
-    return null
-  }
+  if (!selectedCountry) return null
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center py-8 text-center md:max-w-4xl">

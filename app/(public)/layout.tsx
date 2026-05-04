@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -20,26 +20,27 @@ import {
   Settings,
   Gift,
   ChevronDown,
-  HelpCircle,
   Facebook,
   Twitter,
-  Instagram,
   Linkedin,
-  Shield,
+  Youtube,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useAuthStore, useLocalePreferencesStore } from '@/lib/stores'
 import { useCMSStore } from '@/lib/cms-store'
 import { mockCountries } from '@/lib/mock-data'
 import { NAV_CURRENCIES, navRegionShortLabel, isNavCurrency } from '@/lib/locale-nav-data'
+import { readLocaleCookiesFromDocument, setLocaleCookiesClient } from '@/lib/locale/locale-cookies'
+import { normalizeCountryCode } from '@/lib/locale/country-config'
 import { cn } from '@/lib/utils'
 import { ItuLogoMark } from '@/components/itu-logo-mark'
+import { FooterPaymentLogos } from '@/components/footer-payment-logos'
 import { TargetedAdBanner } from '@/components/targeted-ad-banner'
+import { CMSTypographyScope } from '@/components/cms-typography-scope'
 
 const navLinks = [
   { href: '/', label: 'Home', match: (p: string) => p === '/' },
-  { href: '/recharge', label: 'Top-up', match: (p: string) => p.startsWith('/recharge') },
-  { href: '/vouchers', label: 'Vouchers', match: (p: string) => p.startsWith('/vouchers') },
+  { href: '/topup', label: 'Top-up', match: (p: string) => p.startsWith('/topup') },
   { href: '/help', label: 'Help', match: (p: string) => p.startsWith('/help') },
 ]
 
@@ -55,9 +56,11 @@ export default function PublicLayout({
     regionCode,
     languageCode,
     currencyCode,
+    manualOverride,
     setRegion,
     setLanguage,
     setCurrency,
+    setManualOverride,
   } = useLocalePreferencesStore()
 
   const region = mockCountries.find((c) => c.code === regionCode) ?? mockCountries[0]!
@@ -68,6 +71,80 @@ export default function PublicLayout({
   useEffect(() => {
     document.documentElement.lang = languageCode
   }, [languageCode])
+
+  useEffect(() => {
+    // Hydrate from middleware-set cookies (no Geo fetch on every page view).
+    // Never override if user has manually selected preferences.
+    if (manualOverride) return
+    const cookies = readLocaleCookiesFromDocument()
+    if (cookies.manual) {
+      setManualOverride(true)
+      return
+    }
+
+    const cc = normalizeCountryCode(cookies.country) ?? null
+    const lang = (cookies.language ?? '').trim()
+    const cur = (cookies.currency ?? '').trim().toUpperCase()
+
+    const apply = (opts: { countryCode?: string | null; languageCode?: string | null; currencyCode?: string | null }) => {
+      const ccc = normalizeCountryCode(opts.countryCode ?? null)
+      const ll = (opts.languageCode ?? '').trim()
+      const cu = (opts.currencyCode ?? '').trim().toUpperCase()
+
+      if (ccc && mockCountries.some((c) => c.code === ccc) && regionCode === 'IN') setRegion(ccc)
+      if (ll && languageCode === 'en') {
+        // CMS stores base language codes (e.g. "en"), while detection may return "en-IN"
+        const base = ll.split('-')[0]!.toLowerCase()
+        if (content.header.languages.some((l) => l.code.toLowerCase() === base)) setLanguage(base)
+      }
+      if (cu && isNavCurrency(cu) && currencyCode === 'USD') setCurrency(cu)
+    }
+
+    // If cookies already exist, apply immediately (no flicker).
+    if (cc || lang || cur) {
+      apply({ countryCode: cc, languageCode: lang, currencyCode: cur })
+      return
+    }
+
+    // Fallback: if middleware didn’t set cookies (local dev / some hosts),
+    // fetch a derived value once from the server and persist it.
+    const run = async () => {
+      try {
+        const res = await fetch('/api/geo', { cache: 'no-store', credentials: 'include' })
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          countryCode: string | null
+          languageCode: string | null
+          currencyCode: string | null
+          manualOverride?: boolean
+        }
+        if (data.manualOverride) {
+          setManualOverride(true)
+          return
+        }
+        apply(data)
+        setLocaleCookiesClient({
+          country: data.countryCode ?? undefined,
+          language: data.languageCode ?? undefined,
+          currency: data.currencyCode ?? undefined,
+          manual: false,
+        })
+      } catch {
+        // ignore
+      }
+    }
+    void run()
+  }, [
+    content.header.languages,
+    currencyCode,
+    languageCode,
+    manualOverride,
+    regionCode,
+    setCurrency,
+    setLanguage,
+    setManualOverride,
+    setRegion,
+  ])
 
   useEffect(() => {
     if (!mockCountries.some((c) => c.code === regionCode)) {
@@ -88,17 +165,63 @@ export default function PublicLayout({
     }
   }, [currencyCode, setCurrency])
 
+  const isHome = pathname === '/'
+  const [navScrolled, setNavScrolled] = useState(false)
+
+  useEffect(() => {
+    if (!isHome) {
+      setNavScrolled(false)
+      return
+    }
+    const onScroll = () => setNavScrolled(window.scrollY > 28)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [isHome])
+
+  const onHeroTop = isHome && !navScrolled
+  const navBarSolid = !isHome || navScrolled
+
   const navClass = (active: boolean) =>
     cn(
-      'rounded-full px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors md:px-4',
-      active ? 'text-neutral-900' : 'text-neutral-500 hover:bg-neutral-100/90 hover:text-neutral-800',
+      'rounded-md px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors md:px-3.5',
+      onHeroTop
+        ? active
+          ? 'text-[var(--hero-cta-orange)]'
+          : 'text-white/95 hover:bg-white/10'
+        : active
+          ? 'text-neutral-900'
+          : 'text-neutral-500 hover:bg-neutral-100/90 hover:text-neutral-800',
     )
 
+  const headerChromeBtn = onHeroTop
+    ? 'text-white hover:bg-white/10 border-transparent'
+    : 'text-neutral-600 hover:bg-neutral-100/90 hover:text-neutral-900'
+
+  const footerBgImage = (content.footer.backgroundImage ?? '').trim()
+  const footerMainBg = (content.footer.mainBackgroundColor ?? '#e4e4e4').trim()
+  const footerSubBg = (content.footer.subFooterBackgroundColor ?? '#d0d0d0').trim()
+  const footerCopyrightLine = (content.footer.copyrightTemplate ?? '© {{brand}} {{year}}. All rights reserved.')
+    .replace(/\{\{year\}\}/gi, String(new Date().getFullYear()))
+    .replace(/\{\{brand\}\}/gi, content.header.logoText)
+  const footerSocialClass =
+    'flex size-10 items-center justify-center rounded-full bg-[#0b1f35] text-white shadow-sm transition-colors hover:bg-[#132a45] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-900/25'
+
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="pointer-events-none fixed inset-x-0 top-5 z-50 flex justify-center px-3 sm:px-4">
+    <CMSTypographyScope className="min-h-screen flex flex-col bg-background">
+      <header
+        className={cn(
+          'pointer-events-none fixed inset-x-0 z-50 flex justify-center transition-[padding] duration-200 max-w-6xl mx-auto',
+          onHeroTop ? 'top-0 pt-1 sm:pt-2' : 'top-1',
+        )}
+      >
         <div
-          className="pointer-events-auto flex w-full max-w-5xl items-center gap-2 rounded-full border border-neutral-200/90 bg-white/85 py-2 pl-3 pr-2 shadow-[0_10px_40px_-12px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:gap-3 sm:pl-4 md:py-2.5 md:pl-5"
+          className={cn(
+            'pointer-events-auto flex w-full max-w-7xl items-center gap-2 py-2 pl-2 pr-2 transition-[background-color,box-shadow,border-color,border-radius] duration-200 sm:gap-3 sm:pl-4 md:py-1 md:pl-6',
+            navBarSolid
+              ? 'rounded-full border border-neutral-200/90 bg-white/95 shadow-[0_10px_40px_-12px_rgba(15,23,42,0.18)] backdrop-blur-xl'
+              : 'border-transparent bg-transparent',
+          )}
         >
           <Link href="/" className="flex shrink-0 items-center gap-2 pl-1" aria-label={content.header.logoText}>
             <ItuLogoMark />
@@ -121,7 +244,7 @@ export default function PublicLayout({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="hidden h-9 gap-1.5 rounded-full px-2.5 text-neutral-600 hover:bg-neutral-100/90 hover:text-neutral-900 md:inline-flex"
+                  className={cn('hidden h-9 gap-1.5 rounded-full px-2.5 md:inline-flex', headerChromeBtn)}
                   aria-label={`Region: ${region.name}`}
                 >
                   <span className="text-base leading-none">{region.flag}</span>
@@ -136,7 +259,11 @@ export default function PublicLayout({
                   <DropdownMenuItem
                     key={c.code}
                     className={cn('rounded-xl', c.code === region.code && 'bg-muted font-medium')}
-                    onClick={() => setRegion(c.code)}
+                      onClick={() => {
+                        setRegion(c.code)
+                        setManualOverride(true)
+                        setLocaleCookiesClient({ country: c.code, manual: true })
+                      }}
                   >
                     <span className="mr-2 text-base leading-none">{c.flag}</span>
                     <span className="flex-1">{c.name}</span>
@@ -152,7 +279,7 @@ export default function PublicLayout({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="hidden h-9 gap-1.5 rounded-full px-2.5 text-neutral-600 hover:bg-neutral-100/90 hover:text-neutral-900 sm:inline-flex"
+                    className={cn('hidden h-9 gap-1.5 rounded-full px-2.5 sm:inline-flex', headerChromeBtn)}
                     aria-label={`Language: ${language.name}`}
                   >
                     <span className="text-base leading-none">{language.flag}</span>
@@ -167,7 +294,11 @@ export default function PublicLayout({
                     <DropdownMenuItem
                       key={lang.code}
                       className={cn('rounded-xl', lang.code === language.code && 'bg-muted font-medium')}
-                      onClick={() => setLanguage(lang.code)}
+                      onClick={() => {
+                        setLanguage(lang.code)
+                        setManualOverride(true)
+                        setLocaleCookiesClient({ language: lang.code, manual: true })
+                      }}
                     >
                       <span className="mr-2">{lang.flag}</span>
                       {lang.name}
@@ -182,10 +313,12 @@ export default function PublicLayout({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="hidden h-9 gap-1.5 rounded-full px-2.5 text-neutral-600 hover:bg-neutral-100/90 hover:text-neutral-900 md:inline-flex"
+                  className={cn('hidden h-9 gap-1.5 rounded-full px-2.5 md:inline-flex', headerChromeBtn)}
                   aria-label={`Currency: ${currency.name}`}
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-wide">{currency.code}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wide">
+                    {currency.code === 'USD' ? '$ USD' : currency.code}
+                  </span>
                   <ChevronDown className="size-3.5 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
@@ -194,7 +327,11 @@ export default function PublicLayout({
                   <DropdownMenuItem
                     key={cur.code}
                     className={cn('rounded-xl', cur.code === currency.code && 'bg-muted font-medium')}
-                    onClick={() => setCurrency(cur.code)}
+                    onClick={() => {
+                      setCurrency(cur.code)
+                      setManualOverride(true)
+                      setLocaleCookiesClient({ currency: cur.code, manual: true })
+                    }}
                   >
                     <span className="font-mono text-xs font-semibold">{cur.code}</span>
                     <span className="ml-2 text-muted-foreground">{cur.name}</span>
@@ -209,10 +346,18 @@ export default function PublicLayout({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 gap-2 rounded-full px-2 text-neutral-700 hover:bg-neutral-100/90"
+                    className={cn(
+                      'h-9 gap-2 rounded-full px-2',
+                      onHeroTop ? 'text-white hover:bg-white/10' : 'text-neutral-700 hover:bg-neutral-100/90',
+                    )}
                   >
-                    <Avatar className="size-8 ring-1 ring-neutral-200">
-                      <AvatarFallback className="bg-neutral-100 text-xs font-bold text-neutral-800">
+                    <Avatar className={cn('size-8', onHeroTop ? 'ring-1 ring-white/40' : 'ring-1 ring-neutral-200')}>
+                      <AvatarFallback
+                        className={cn(
+                          'text-xs font-bold',
+                          onHeroTop ? 'bg-white/20 text-white' : 'bg-neutral-100 text-neutral-800',
+                        )}
+                      >
                         {user.name.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -259,7 +404,12 @@ export default function PublicLayout({
             ) : (
               <Button
                 size="sm"
-                className="h-9 shrink-0 rounded-full px-5 text-[11px] font-bold uppercase tracking-[0.12em] shadow-[0_6px_20px_-4px_rgba(227,6,19,0.45)]"
+                className={cn(
+                  'h-9 shrink-0 px-6 text-[11px] font-bold uppercase tracking-[0.12em]',
+                  isHome
+                    ? 'rounded-lg border-0 bg-[var(--hero-cta-orange)] text-white shadow-[0_10px_26px_-8px_rgba(241,90,43,0.55)] hover:bg-[var(--hero-cta-orange)]/92'
+                    : 'rounded-full bg-primary text-primary-foreground shadow-[0_6px_20px_-4px_rgba(227,6,19,0.45)] hover:bg-primary/90',
+                )}
                 asChild
               >
                 <Link href="/login">Login</Link>
@@ -268,7 +418,14 @@ export default function PublicLayout({
 
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-9 shrink-0 rounded-full text-neutral-700 hover:bg-neutral-100/90 lg:hidden">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'size-9 shrink-0 rounded-full lg:hidden',
+                    onHeroTop ? 'text-white hover:bg-white/10' : 'text-neutral-700 hover:bg-neutral-100/90',
+                  )}
+                >
                   <Menu className="size-5" />
                 </Button>
               </SheetTrigger>
@@ -343,136 +500,120 @@ export default function PublicLayout({
         {pathname === '/' ? (
           children
         ) : pathname.startsWith('/account') ? (
-          <div className="flex w-full flex-1 flex-col px-4 pb-16 pt-2 sm:px-6">
+          <div className="">
             {children}
           </div>
         ) : (
-          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pb-16 pt-2 sm:px-6 lg:max-w-7xl">
+          <div className="">
             {children}
           </div>
         )}
       </main>
 
-      <footer
-        className="mt-auto border-t border-border/60 bg-foreground text-background"
-        style={
-          content.footer.backgroundImage
-            ? {
-                backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.9)), url(${content.footer.backgroundImage})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }
-            : undefined
-        }
-      >
-        <div className="container mx-auto px-4 py-14">
-          <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-12">
-            <div className="lg:col-span-4 space-y-5">
-              <Link href="/" className="inline-flex items-center gap-3">
-                <ItuLogoMark size="md" />
-                <span className="font-title-logo text-2xl font-semibold tracking-tight text-background">
-                  {content.header.logoText}
-                </span>
-              </Link>
-              <p className="max-w-sm text-sm leading-relaxed text-background/75">{content.footer.brandTagline}</p>
-              <div className="flex flex-wrap gap-2 text-sm text-background/80">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-background/15 bg-background/5 px-3 py-2">
-                  <Shield className="h-4 w-4 text-primary" />
-                  {content.footer.trustBadgeText}
-                </span>
+      <footer className="mt-auto border-t border-neutral-300/90 text-neutral-900">
+        <>
+          <div
+            className="border-b border-neutral-400/20"
+            style={
+              footerBgImage
+                ? {
+                    backgroundImage: `linear-gradient(rgba(228, 228, 228, 0.94), rgba(228, 228, 228, 0.94)), url(${footerBgImage})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                  }
+                : { backgroundColor: footerMainBg }
+            }
+          >
+                <div className="container mx-auto max-w-6xl px-4 py-12 md:py-16">
+                  <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-12">
+                    <div className="space-y-5 sm:col-span-2 lg:col-span-1">
+                      <Link href="/" className="inline-flex" aria-label={`${content.header.logoText} home`}>
+                        <ItuLogoMark size="lg" />
+                      </Link>
+                      <p className="max-w-sm text-sm font-normal leading-relaxed text-neutral-800">
+                        {content.footer.brandTagline}
+                      </p>
+                      <div className="flex flex-wrap gap-2.5 pt-1">
+                        <a
+                          href={content.footer.socialLinks.twitter}
+                          className={footerSocialClass}
+                          aria-label="X (Twitter)"
+                        >
+                          <Twitter className="h-4 w-4" strokeWidth={2} />
+                        </a>
+                        <a href={content.footer.socialLinks.facebook} className={footerSocialClass} aria-label="Facebook">
+                          <Facebook className="h-4 w-4" strokeWidth={2} />
+                        </a>
+                        <a href={content.footer.socialLinks.youtube} className={footerSocialClass} aria-label="YouTube">
+                          <Youtube className="h-4 w-4" strokeWidth={2} />
+                        </a>
+                        <a href={content.footer.socialLinks.linkedin} className={footerSocialClass} aria-label="LinkedIn">
+                          <Linkedin className="h-4 w-4" strokeWidth={2} />
+                        </a>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="mb-4 text-sm font-bold text-neutral-900">Company</h4>
+                      <ul className="space-y-3 text-sm font-normal text-neutral-800">
+                        {content.footer.companyLinks.map((link) => (
+                          <li key={`${link.href}-${link.label}`}>
+                            <Link
+                              href={link.href}
+                              className="transition-colors hover:text-neutral-950 hover:underline underline-offset-4"
+                            >
+                              {link.label}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div>
+                      <h4 className="mb-4 text-sm font-bold text-neutral-900">Legal</h4>
+                      <ul className="space-y-3 text-sm font-normal text-neutral-800">
+                        {content.footer.legalLinks.map((link) => (
+                          <li key={`${link.href}-${link.label}`}>
+                            <Link
+                              href={link.href}
+                              className="transition-colors hover:text-neutral-950 hover:underline underline-offset-4"
+                            >
+                              {link.label}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="mt-8 border-t border-neutral-400/30 pt-6">
+                        <FooterPaymentLogos />
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="mb-4 text-sm font-bold text-neutral-900">Help</h4>
+                      <ul className="space-y-3 text-sm font-normal text-neutral-800">
+                        {content.footer.helpLinks.map((link) => (
+                          <li key={`${link.href}-${link.label}`}>
+                            <Link
+                              href={link.href}
+                              className="transition-colors hover:text-neutral-950 hover:underline underline-offset-4"
+                            >
+                              {link.label}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-2 pt-1">
-                <a
-                  href={content.footer.socialLinks.facebook}
-                  className="flex size-10 items-center justify-center rounded-full border border-background/15 bg-background/5 text-background/80 transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                  aria-label="Facebook"
-                >
-                  <Facebook className="h-4 w-4" />
-                </a>
-                <a
-                  href={content.footer.socialLinks.twitter}
-                  className="flex size-10 items-center justify-center rounded-full border border-background/15 bg-background/5 text-background/80 transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                  aria-label="Twitter"
-                >
-                  <Twitter className="h-4 w-4" />
-                </a>
-                <a
-                  href={content.footer.socialLinks.instagram}
-                  className="flex size-10 items-center justify-center rounded-full border border-background/15 bg-background/5 text-background/80 transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                  aria-label="Instagram"
-                >
-                  <Instagram className="h-4 w-4" />
-                </a>
-                <a
-                  href={content.footer.socialLinks.linkedin}
-                  className="flex size-10 items-center justify-center rounded-full border border-background/15 bg-background/5 text-background/80 transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
-                  aria-label="LinkedIn"
-                >
-                  <Linkedin className="h-4 w-4" />
-                </a>
-              </div>
-            </div>
 
-            <div className="lg:col-span-2">
-              <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-background/55">Company</h4>
-              <ul className="space-y-3 text-sm text-background/75">
-                {content.footer.companyLinks.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className="transition-colors hover:text-background">
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="lg:col-span-2">
-              <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-background/55">Legal</h4>
-              <ul className="space-y-3 text-sm text-background/75">
-                {content.footer.legalLinks.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className="transition-colors hover:text-background">
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="lg:col-span-2">
-              <h4 className="mb-4 text-xs font-semibold uppercase tracking-wider text-background/55">Help</h4>
-              <ul className="space-y-3 text-sm text-background/75">
-                {content.footer.helpLinks.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className="transition-colors hover:text-background">
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <div className="border-t border-neutral-400/25" style={{ backgroundColor: footerSubBg }}>
+            <p className="py-4 text-center text-sm font-bold tracking-tight text-neutral-900 md:py-5">
+              {footerCopyrightLine}
+            </p>
           </div>
-        </div>
-
-        <div className="border-t border-background/10 bg-black/20">
-          <div className="container mx-auto flex flex-col items-center justify-between gap-3 px-4 py-4 sm:flex-row">
-            <span className="text-sm text-background/70">
-              &copy; {new Date().getFullYear()} {content.header.logoText}. All rights reserved.
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 gap-2 rounded-full text-background/70 hover:bg-background/10 hover:text-background"
-              asChild
-            >
-              <Link href="/help">
-                <HelpCircle className="h-4 w-4" />
-                Help
-              </Link>
-            </Button>
-          </div>
-        </div>
+        </>
       </footer>
-    </div>
+    </CMSTypographyScope>
   )
 }

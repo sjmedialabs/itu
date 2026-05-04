@@ -4,6 +4,17 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Landing palette (mock UI): navy + sky blue + orange CTAs */
+  --landing-navy: #071933;
+  --landing-navy-mid: #0d2744;
+  --landing-orange: #f27420;
+  /* Navy hero / ITU mock CTA orange */
+  --hero-navy: #0b1b3d;
+  --hero-cta-orange: #f15a2b;
+  --brand-red: #e30613;
+  --landing-sky: #e8f4fc;
+  --landing-footer: #e8eaed;
+
   /* Reference landing: light grey canvas + brand red #E30613 */
   --background: #f8f9fa;
   --foreground: oklch(0.22 0.02 260);
@@ -146,7 +157,7 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-title), ui-serif, Georgia, serif;
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
     @apply tracking-tight text-balance;
   }
 
@@ -158,13 +169,34 @@
   [data-slot='alert-title'],
   [data-slot='empty-title'],
   [data-slot='item-title'] {
-    font-family: var(--font-title), ui-serif, Georgia, serif;
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Public site: per-heading fonts from CMS (variables set on .cms-typography-scope) */
+  .cms-typography-scope h1 {
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  }
+  .cms-typography-scope h2 {
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  }
+  .cms-typography-scope h3 {
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  }
+  .cms-typography-scope h4 {
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  }
+  .cms-typography-scope h5,
+  .cms-typography-scope h6 {
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+  }
+  .cms-typography-scope p {
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
   }
 }
 
 @layer utilities {
   .font-title-logo {
-    font-family: var(--font-title), ui-serif, Georgia, serif;
+    font-family: var(--font-app), ui-sans-serif, system-ui, sans-serif;
   }
 
   .shadow-elevated {
@@ -198,5 +230,73 @@
       auto,
       auto;
     background-position: center;
+  }
+
+  /* Deep navy hero background + subtle network grid + glow (matches ITU Web mock) */
+  .bg-landing-hero {
+    background-color: var(--landing-navy);
+    background-image:
+      radial-gradient(ellipse 85% 65% at 70% 35%, rgba(39, 126, 216, 0.22), transparent 55%),
+      radial-gradient(ellipse 50% 45% at 15% 75%, rgba(242, 116, 32, 0.08), transparent 50%),
+      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size:
+      auto,
+      auto,
+      56px 56px,
+      56px 56px;
+    background-position: center;
+  }
+
+  .bg-landing-sky {
+    background-color: var(--landing-sky);
+  }
+
+  .bg-landing-footer {
+    background-color: var(--landing-footer);
+  }
+
+  .text-landing-orange {
+    color: var(--landing-orange);
+  }
+
+  .bg-landing-orange {
+    background-color: var(--landing-orange);
+  }
+
+  .landing-phone-frame {
+    border-radius: 2rem;
+    box-shadow:
+      0 24px 80px -20px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  /* TopUpGlobal-style hero: soft lavender-grey + organic blobs */
+  .bg-hero-tug {
+    background: linear-gradient(165deg, #f5f2fa 0%, #ebe6f2 42%, #f0ecf8 72%, #faf8fc 100%);
+  }
+
+  .bg-hero-tug-blobs {
+    background-image:
+      radial-gradient(ellipse 55% 42% at 88% 18%, rgba(186, 168, 228, 0.35), transparent 58%),
+      radial-gradient(ellipse 48% 38% at 12% 72%, rgba(200, 214, 236, 0.45), transparent 55%),
+      radial-gradient(ellipse 40% 35% at 55% 95%, rgba(225, 218, 242, 0.5), transparent 50%);
+  }
+
+  @keyframes operators-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  .operators-marquee-track {
+    animation: operators-marquee var(--operators-marquee-duration, 42s) linear infinite;
+  }
+
+  .operators-marquee-track:hover {
+    animation-play-state: paused;
   }
 }

@@ -1,38 +1,39 @@
 import { NextResponse } from 'next/server'
-import { getCountriesWithFallback } from '@/lib/api/ding-connect'
+import { dbFetchCountries } from '@/lib/db/catalog'
+import { guardCatalog } from '@/lib/db/require-catalog'
 
 export async function GET() {
+  const denied = guardCatalog()
+  if (denied) return denied
+
   try {
-    const countries = await getCountriesWithFallback()
-    
-    // Transform to app-friendly format
-    const formattedCountries = countries.map(c => ({
-      code: c.CountryIso,
-      name: c.CountryName,
-      flag: getFlagEmoji(c.CountryIso),
-      dialCode: c.InternationalDialingInformation?.[0]?.Prefix || '',
-      dialingInfo: c.InternationalDialingInformation?.map(d => ({
-        prefix: d.Prefix,
-        minLength: d.MinimumLength,
-        maxLength: d.MaximumLength,
-      })) || [],
+    const rows = await dbFetchCountries()
+
+    const countries = rows.map((c) => ({
+      code: c.country_iso,
+      name: c.name,
+      flag: flagEmoji(c.country_iso),
+      dialCode: c.dial_prefix ?? '',
+      dialingInfo: [
+        {
+          prefix: c.dial_prefix ?? '',
+          minLength: c.min_length ?? 10,
+          maxLength: c.max_length ?? 15,
+        },
+      ],
     }))
 
-    return NextResponse.json({ countries: formattedCountries })
+    return NextResponse.json({ countries })
   } catch (error) {
-    console.error('Error fetching countries:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch countries' },
-      { status: 500 }
-    )
+    console.error('countries:', error)
+    return NextResponse.json({ error: 'Failed to fetch countries' }, { status: 500 })
   }
 }
 
-// Helper to get flag emoji from country code
-function getFlagEmoji(countryCode: string): string {
+function flagEmoji(countryCode: string): string {
   const codePoints = countryCode
     .toUpperCase()
     .split('')
-    .map(char => 127397 + char.charCodeAt(0))
+    .map((char) => 127397 + char.charCodeAt(0))
   return String.fromCodePoint(...codePoints)
 }

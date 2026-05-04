@@ -1,23 +1,19 @@
 import type { Metadata } from 'next'
-import { Bricolage_Grotesque, Roboto_Slab } from 'next/font/google'
+import localFont from 'next/font/local'
 import { Analytics } from '@vercel/analytics/next'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
-const bodyFont = Bricolage_Grotesque({
-  subsets: ['latin'],
+const aeonik = localFont({
   variable: '--font-app',
   display: 'swap',
-  weight: 'variable',
-  axes: ['opsz'],
-})
-
-const titleFont = Roboto_Slab({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-title',
-  display: 'swap',
+  src: [
+    { path: './fonts/aeonik/Aeonik-Light.ttf', weight: '300', style: 'normal' },
+    { path: './fonts/aeonik/Aeonik-Regular.ttf', weight: '400', style: 'normal' },
+    { path: './fonts/aeonik/Aeonik-Bold.ttf', weight: '700', style: 'normal' },
+    { path: './fonts/aeonik/Aeonik-Black.ttf', weight: '900', style: 'normal' },
+  ],
 })
 
 export const metadata: Metadata = {
@@ -38,7 +34,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bodyFont.variable} ${titleFont.variable}`}
+      className={aeonik.variable}
       suppressHydrationWarning
     >
       <body className="font-sans antialiased bg-background">
