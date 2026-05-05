@@ -51,7 +51,7 @@ export default function PublicLayout({
 }) {
   const pathname = usePathname()
   const { user, isAuthenticated, logout } = useAuthStore()
-  const { content } = useCMSStore()
+  const { content, setContent, hasHydrated } = useCMSStore()
   const {
     regionCode,
     languageCode,
@@ -71,6 +71,27 @@ export default function PublicLayout({
   useEffect(() => {
     document.documentElement.lang = languageCode
   }, [languageCode])
+
+  useEffect(() => {
+    // Load CMS content from server so all browsers see the same content.
+    // Important: wait for zustand-persist hydration first so localStorage doesn't overwrite DB content after we set it.
+    if (!hasHydrated) return
+    let cancelled = false
+    void fetch('/api/cms', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('cms'))))
+      .then((data: { content?: unknown }) => {
+        if (cancelled) return
+        if (data?.content && typeof data.content === 'object') {
+          setContent(data.content as any, { markDirty: false })
+        }
+      })
+      .catch(() => {
+        // ignore: keep local persisted/default CMS
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasHydrated, setContent])
 
   useEffect(() => {
     // Hydrate from middleware-set cookies (no Geo fetch on every page view).
