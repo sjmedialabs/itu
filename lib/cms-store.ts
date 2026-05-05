@@ -503,6 +503,7 @@ interface CMSStore {
   isDirty: boolean
   hasHydrated: boolean
   setHasHydrated: (hydrated: boolean) => void
+  setContent: (content: Partial<SiteContent> | SiteContent, opts?: { markDirty?: boolean }) => void
   updateHero: (hero: Partial<HeroContent>) => void
   updateAuthPages: (auth: Partial<AuthPagesContent>) => void
   updateServiceToggle: (toggle: Partial<ServiceToggleContent>) => void
@@ -613,6 +614,12 @@ export const useCMSStore = create<CMSStore>()(
       isDirty: false,
       hasHydrated: false,
       setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
+
+      setContent: (content, opts) =>
+        set(() => ({
+          content: mergeSiteContent(content as Partial<SiteContent>),
+          isDirty: opts?.markDirty ?? false,
+        })),
 
       updateHero: (hero) =>
         set((state) => ({
@@ -976,18 +983,17 @@ export const useCMSStore = create<CMSStore>()(
     }),
     {
       name: 'itu-cms-storage',
+      // Critical: do NOT persist CMS content in browser storage.
+      // The DB is the source of truth; persisting content causes different browsers to diverge.
+      partialize: () => ({}),
       onRehydrateStorage: () => (state, error) => {
         if (error) return
         state?.markClean?.()
         state?.setHasHydrated?.(true)
       },
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<CMSStore>
-        return {
-          ...current,
-          ...p,
-          content: mergeSiteContent(p.content),
-        }
+        // With partialize() returning {}, persisted contains no content; keep current defaults.
+        return current
       },
     }
   )

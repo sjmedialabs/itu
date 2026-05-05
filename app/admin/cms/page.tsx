@@ -63,6 +63,8 @@ export default function CMSPage() {
   const { 
     content, 
     isDirty,
+    hasHydrated,
+    setContent,
     updateHero,
     updateAuthPages,
     updateTopupCard, 
@@ -113,6 +115,28 @@ export default function CMSPage() {
     }
   }, [contentSnapshot, isDirty, saveStatus])
 
+  useEffect(() => {
+    // Load published CMS from DB on page open, so what you edit is what every browser will see.
+    if (!hasHydrated) return
+    let cancelled = false
+    void fetch('/api/cms', { cache: 'no-store', credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('cms'))))
+      .then((data: { content?: unknown }) => {
+        if (cancelled) return
+        if (data?.content && typeof data.content === 'object') {
+          setContent(data.content as any, { markDirty: false })
+          markClean()
+          setSavedSnapshot(JSON.stringify(data.content))
+        }
+      })
+      .catch(() => {
+        // ignore: keep local persisted/default CMS
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [hasHydrated, markClean, setContent])
+
   const fileToDataUrl = async (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -129,12 +153,21 @@ export default function CMSPage() {
 
   const handleSave = async () => {
     setSaveStatus('saving')
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    markClean()
-    setSavedSnapshot(contentSnapshot)
-    setSaveStatus('saved')
-    setTimeout(() => setSaveStatus('idle'), 2000)
+    try {
+      const res = await fetch('/api/cms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      })
+      if (!res.ok) throw new Error('save')
+      markClean()
+      setSavedSnapshot(contentSnapshot)
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 2000)
+    } catch {
+      setSaveStatus('idle')
+      // keep isDirty=true so user can retry
+    }
   }
 
   return (
