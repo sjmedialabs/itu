@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { isCatalogDemoFallbackEnabled } from '@/lib/catalog/demo-plans'
+import { getDemoOperatorRows } from '@/lib/catalog/demo-operators'
 import { dbFetchOperators } from '@/lib/db/catalog'
 import { guardCatalog } from '@/lib/db/require-catalog'
 
@@ -14,7 +16,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Country code is required' }, { status: 400 })
     }
 
-    const rows = await dbFetchOperators(countryCode)
+    let rows = await dbFetchOperators(countryCode)
+    if (!rows.length && isCatalogDemoFallbackEnabled()) {
+      rows = getDemoOperatorRows(countryCode)
+    }
 
     const providers = rows.map((p) => ({
       id: `carrier-${p.code.toLowerCase().replace(/_/g, '-')}`,

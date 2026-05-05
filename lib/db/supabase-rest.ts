@@ -3,8 +3,10 @@
  * Used for catalog reads/writes; bypasses RLS when service role is configured.
  */
 
+import { runtimeEnv } from '@/lib/env/runtime'
+
 export function isSupabaseCatalogConfigured(): boolean {
-  return !!(process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_SERVICE_ROLE_KEY?.trim())
+  return !!(runtimeEnv('SUPABASE_URL') && runtimeEnv('SUPABASE_SERVICE_ROLE_KEY'))
 }
 
 function normalizeSupabaseBaseUrl(raw: string): string {
@@ -20,8 +22,8 @@ function normalizeSupabaseBaseUrl(raw: string): string {
 }
 
 export async function supabaseRest(pathWithQuery: string, init?: RequestInit): Promise<Response> {
-  const baseRaw = process.env.SUPABASE_URL?.trim()
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  const baseRaw = runtimeEnv('SUPABASE_URL')
+  const key = runtimeEnv('SUPABASE_SERVICE_ROLE_KEY')
   if (!baseRaw || !key) {
     throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set for database-backed catalog')
   }

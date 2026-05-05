@@ -52,11 +52,18 @@ export default function TopupPlanSelectionPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phoneNumber: localPhone, countryCode }),
         })
-        const data = (await res.json()) as OperatorDetectResponse
-        if (data?.operator) setOperator(data.operator)
-        setResolvedProviderCode(data.providerCode?.trim() || undefined)
+        const data = (await res.json().catch(() => ({}))) as Partial<OperatorDetectResponse>
+        const name =
+          res.ok && typeof data.operator === 'string' && data.operator.trim().length > 0
+            ? data.operator.trim()
+            : 'Unknown'
+        setOperator(name)
+        const pc =
+          res.ok && typeof data.providerCode === 'string' ? data.providerCode.trim() : ''
+        setResolvedProviderCode(pc || undefined)
       } catch {
-        // ignore
+        setOperator('Unknown')
+        setResolvedProviderCode(undefined)
       } finally {
         setDetecting(false)
       }
@@ -75,8 +82,8 @@ export default function TopupPlanSelectionPage() {
         })
         if (resolvedProviderCode) params.set('providerCode', resolvedProviderCode)
         const res = await fetch(`/api/plans?${params}`, { credentials: 'include' })
-        const data = (await res.json()) as PlansResponse
-        const rows = Array.isArray(data?.plans) ? data.plans : []
+        const data = (await res.json().catch(() => ({}))) as PlansResponse
+        const rows = res.ok && Array.isArray(data?.plans) ? data.plans : []
         setPlans(rows)
       } finally {
         setLoadingPlans(false)
@@ -110,31 +117,34 @@ export default function TopupPlanSelectionPage() {
           </p>
         </div>
 
-        <div className="mx-auto mt-8 rounded-2xl bg-[#eef8ff] px-5 py-5 shadow-sm ring-1 ring-black/5 md:px-7 md:py-6">
+        <div className="mx-auto mt-8 rounded-2xl bg-[#eaf6ff] px-5 py-6 shadow-sm ring-1 ring-black/5 md:px-7 md:py-7">
           <div className="grid gap-3 md:grid-cols-[180px_1fr_220px_260px]">
-            <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.35)] ring-1 ring-black/5">
+            <div className="flex items-center gap-2 rounded-xl bg-[#f8f6f7] px-4 py-3 ring-1 ring-black/10">
               <span className="text-lg">🇮🇳</span>
               <span className="text-sm font-semibold text-neutral-900">+91</span>
               <ChevronDown className="ml-auto h-4 w-4 text-neutral-400" />
             </div>
-            <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.35)] ring-1 ring-black/5">
+            <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
               <Input
                 value={localPhone}
                 onChange={(e) => setLocalPhone(e.target.value.replace(/[^\d]/g, ''))}
                 placeholder="+91 9999999999"
-                className="h-8 border-0 bg-transparent p-0 text-sm font-medium text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:ring-0"
+                className="h-8 rounded-none border-0 bg-transparent p-0 text-sm font-medium text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:border-transparent focus-visible:ring-0"
               />
             </div>
-            <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.35)] ring-1 ring-black/5">
+            <div className="flex items-center justify-between rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-neutral-900">{operator || 'airtel'}</span>
+                <span className="text-sm font-semibold text-neutral-900">{operator || '—'}</span>
                 {detecting ? <span className="text-xs text-neutral-400">…</span> : null}
               </div>
-              <button type="button" className="text-xs font-medium text-[var(--hero-cta-orange)] underline-offset-2 hover:underline">
+              <button
+                type="button"
+                className="text-xs font-medium text-[var(--hero-cta-orange)] underline underline-offset-2"
+              >
                 Change
               </button>
             </div>
-            <div className="rounded-xl bg-white px-4 py-3 text-[11px] text-neutral-500 shadow-[0_10px_26px_-18px_rgba(15,23,42,0.35)] ring-1 ring-black/5">
+            <div className="rounded-xl bg-[#f8f6f7] px-4 py-3 text-[11px] text-neutral-600 ring-1 ring-black/10">
               Recharge will be sent to
               <div className="mt-1 text-[11px] font-semibold text-neutral-700">
                 +91-{localPhone || '__________'} {operator ? ` ${operator}, India` : ''}
@@ -147,15 +157,15 @@ export default function TopupPlanSelectionPage() {
           <>
             <div className="mt-10 flex flex-col items-center justify-between gap-4 md:flex-row">
               <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full md:w-auto">
-                <TabsList className="h-12 rounded-full bg-white shadow-sm ring-1 ring-black/5">
+                <TabsList className="h-12 rounded-full bg-transparent p-0 shadow-none ring-0">
                   {tabs.map((t) => (
                     <TabsTrigger
                       key={t.id}
                       value={t.id}
                       className={cn(
                         'h-10 rounded-full px-6 text-[11px] font-bold uppercase tracking-[0.12em]',
-                        'data-[state=active]:bg-neutral-200 data-[state=active]:text-neutral-900 data-[state=active]:shadow-none',
-                        'data-[state=inactive]:text-neutral-600',
+                        'data-[state=active]:bg-neutral-200/80 data-[state=active]:text-[var(--hero-cta-orange)] data-[state=active]:shadow-none',
+                        'data-[state=inactive]:text-neutral-700 data-[state=inactive]:bg-transparent',
                       )}
                     >
                       {t.label}
@@ -167,7 +177,7 @@ export default function TopupPlanSelectionPage() {
               <div className="flex w-full items-center justify-end gap-3 md:w-auto">
                 <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Filter by:</span>
                 <Select value={sort} onValueChange={(v) => setSort(v as any)}>
-                  <SelectTrigger className="h-11 w-[190px] rounded-full bg-white shadow-sm ring-1 ring-black/5">
+                <SelectTrigger className="h-11 w-[190px] rounded-full bg-[#f8f6f7] shadow-none ring-1 ring-black/10">
                     <SelectValue placeholder="Popular" />
                   </SelectTrigger>
                   <SelectContent>
@@ -186,6 +196,15 @@ export default function TopupPlanSelectionPage() {
                     <div key={i} className="h-28 rounded-2xl bg-white/70 ring-1 ring-black/5" />
                   ))}
                 </div>
+              ) : visiblePlans.length === 0 ? (
+                <div className="rounded-2xl bg-white px-6 py-12 text-center shadow-sm ring-1 ring-black/5">
+                  <p className="text-sm font-semibold text-neutral-900">No recharge plans in catalog</p>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    Apply <span className="font-mono text-neutral-700">supabase/catalog_seed.sql</span> in your Supabase SQL
+                    editor, or set <span className="font-mono text-neutral-700">CATALOG_DEMO_FALLBACK=1</span> in{' '}
+                    <span className="font-mono text-neutral-700">.env</span> for demo SKUs when the table is empty.
+                  </p>
+                </div>
               ) : (
                 visiblePlans.map((plan) => (
                   <div
@@ -194,7 +213,7 @@ export default function TopupPlanSelectionPage() {
                   >
                     <div className="grid items-stretch gap-0 md:grid-cols-[180px_1fr_150px_150px]">
                       <div className="relative flex items-center justify-center bg-white p-4 md:p-5">
-                        <div className="w-full rounded-xl border border-neutral-200 bg-[#f3f9ff] px-4 py-5 text-center">
+                        <div className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-5 text-center">
                           {plan.tag === 'popular' ? (
                             <div className="pointer-events-none absolute right-4 top-4 overflow-hidden rounded-tr-xl">
                               <div className="absolute right-[-36px] top-[6px] rotate-45 bg-[var(--hero-cta-orange)] px-10 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white">
@@ -207,7 +226,7 @@ export default function TopupPlanSelectionPage() {
                         </div>
                       </div>
 
-                      <div className="border-t border-neutral-100 bg-[#f7fcff] px-5 py-4 md:border-l md:border-t-0 md:py-5">
+                      <div className="border-t border-neutral-100 bg-white px-5 py-4 md:border-l md:border-t-0 md:py-5">
                         <div className="grid grid-cols-3 items-center gap-4">
                           <div className="flex items-center gap-2">
                             <span className="flex size-9 items-center justify-center rounded-full bg-white ring-1 ring-black/5">
@@ -237,13 +256,13 @@ export default function TopupPlanSelectionPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="mt-4 border-t border-neutral-200/70 pt-3 text-[11px] text-neutral-500">
-                          <span className="font-semibold text-neutral-700">{operator || 'Airtel'}</span>
+                        <div className="mt-4 border-t border-neutral-200/70 pt-3 text-[11px] text-neutral-600">
+                          <span className="font-semibold text-neutral-800">{operator || '—'}</span>
                           <span className="ml-2">{plan.benefits || 'Thanks app: Free hello tunes + Wynk music'}</span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-center border-t border-neutral-100 bg-[#f7fcff] px-4 py-4 md:border-l md:border-t-0">
+                      <div className="flex items-center justify-center border-t border-neutral-100 bg-white px-4 py-4 md:border-l md:border-t-0">
                         <div className="text-center">
                           <span className="mx-auto mb-1 flex size-9 items-center justify-center rounded-full bg-white ring-1 ring-black/5">
                             <CalendarDays className="h-4 w-4 text-neutral-700" />
@@ -253,10 +272,10 @@ export default function TopupPlanSelectionPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-center border-t border-neutral-100 bg-[#f7fcff] px-4 py-4 md:border-l md:border-t-0">
+                      <div className="flex items-center justify-center border-t border-neutral-100 bg-white px-4 py-4 md:border-l md:border-t-0">
                         <Button
                           className={cn(
-                            'h-9 rounded-full bg-[var(--hero-cta-orange)] px-6 text-xs font-bold uppercase tracking-wide text-white hover:brightness-105',
+                            'h-9 rounded-full bg-[var(--hero-cta-orange)] px-6 text-[11px] font-bold uppercase tracking-wide text-white shadow-none hover:brightness-105',
                           )}
                           onClick={() => onBuy(plan)}
                         >

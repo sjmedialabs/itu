@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { runtimeEnv } from '@/lib/env/runtime'
 
 /**
  * Production note:
@@ -20,8 +21,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'Missing fields' }, { status: 400 })
   }
 
-  const url = process.env.SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const url = runtimeEnv('SUPABASE_URL')
+  const serviceKey = runtimeEnv('SUPABASE_SERVICE_ROLE_KEY')
 
   if (!url || !serviceKey) {
     // Keep app working in non-Supabase setups.

@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { isCatalogDemoFallbackEnabled } from '@/lib/catalog/demo-plans'
+import { getDemoOperatorRows } from '@/lib/catalog/demo-operators'
 import { dbFetchOperators, pickOperatorForPhone } from '@/lib/db/catalog'
 import { guardCatalog } from '@/lib/db/require-catalog'
 
@@ -15,7 +17,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'phoneNumber and countryCode are required' }, { status: 400 })
     }
 
-    const operators = await dbFetchOperators(countryCode)
+    let operators = await dbFetchOperators(countryCode)
+    if (!operators.length && isCatalogDemoFallbackEnabled()) {
+      operators = getDemoOperatorRows(countryCode)
+    }
     const picked = pickOperatorForPhone(operators, phoneNumber)
 
     if (!picked) {

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { getDemoPlanRows, isCatalogDemoFallbackEnabled } from '@/lib/catalog/demo-plans'
 import { dbFetchOperators, dbFetchPlans, type PlanRow } from '@/lib/db/catalog'
 import { guardCatalog } from '@/lib/db/require-catalog'
 
@@ -56,11 +57,11 @@ export async function GET(request: Request) {
       code = matched?.code ?? null
     }
 
-    if (!code) {
-      return NextResponse.json({ plans: [] })
+    // When the UI shows "Unknown" or names don't match DB codes, still return plans for the country.
+    let rows = await dbFetchPlans(country, code)
+    if (!rows.length && isCatalogDemoFallbackEnabled()) {
+      rows = getDemoPlanRows(country)
     }
-
-    const rows = await dbFetchPlans(country, code)
     return NextResponse.json({ plans: rows.map(rowToPlan) })
   } catch (error) {
     console.error('plans:', error)
