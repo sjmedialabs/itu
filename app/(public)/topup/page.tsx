@@ -10,6 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CalendarDays, ChevronDown, MessageSquareText, PhoneCall, Sparkles, Wifi } from 'lucide-react'
 import { useTopupStore, type TopupPlan } from '@/store/topupStore'
+import { useLocalePreferencesStore } from '@/lib/stores'
+import { getDialCode } from '@/lib/lcr/countries'
+import { flagEmojiFromIso } from '@/lib/lcr/countries'
 
 type OperatorDetectResponse = { operator: string; country: string; providerCode?: string; source?: string }
 type DbProvider = { code: string; name: string; shortName: string }
@@ -26,6 +29,10 @@ export default function TopupPlanSelectionPage() {
   const router = useRouter()
   const { countryCode, phoneNumber, operator, setPhoneDetails, setOperator, selectPlan, calculatePricing } =
     useTopupStore()
+  const { currencyCode } = useLocalePreferencesStore()
+  const userCurrency: 'INR' | 'EUR' = currencyCode === 'INR' ? 'INR' : 'EUR'
+  const dialPrefix = getDialCode(countryCode)
+  const countryFlag = flagEmojiFromIso(countryCode)
 
   const [localPhone, setLocalPhone] = useState(phoneNumber)
   const [detecting, setDetecting] = useState(false)
@@ -175,7 +182,7 @@ export default function TopupPlanSelectionPage() {
 
   const onBuy = (plan: TopupPlan) => {
     selectPlan(plan)
-    calculatePricing({ currency: 'EUR', fee: 0.49 })
+    calculatePricing({ currency: userCurrency, fee: 0.49 })
     router.push('/topup/summary')
   }
 
@@ -192,15 +199,15 @@ export default function TopupPlanSelectionPage() {
         <div className="mx-auto mt-8 rounded-2xl bg-[#eaf6ff] px-5 py-6 shadow-sm ring-1 ring-black/5 md:px-7 md:py-7">
           <div className="grid gap-3 md:grid-cols-[180px_1fr_220px_260px]">
             <div className="flex items-center gap-2 rounded-xl bg-[#f8f6f7] px-4 py-3 ring-1 ring-black/10">
-              <span className="text-lg">🇮🇳</span>
-              <span className="text-sm font-semibold text-neutral-900">+91</span>
+              <span className="text-lg">{countryFlag}</span>
+              <span className="text-sm font-semibold text-neutral-900">+{dialPrefix}</span>
               <ChevronDown className="ml-auto h-4 w-4 text-neutral-400" />
             </div>
             <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 ring-1 ring-black/10">
               <Input
                 value={localPhone}
                 onChange={(e) => setLocalPhone(e.target.value.replace(/[^\d]/g, ''))}
-                placeholder="+91 9999999999"
+                placeholder="Enter mobile number"
                 className="h-8 rounded-none border-0 bg-transparent p-0 text-sm font-medium text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:border-transparent focus-visible:ring-0"
               />
             </div>
@@ -220,7 +227,7 @@ export default function TopupPlanSelectionPage() {
             <div className="rounded-xl bg-[#f8f6f7] px-4 py-3 text-[11px] text-neutral-600 ring-1 ring-black/10">
               Recharge will be sent to
               <div className="mt-1 text-[11px] font-semibold text-neutral-700">
-                +91-{localPhone || '__________'} {operator ? ` ${operator}, India` : ''}
+                +{dialPrefix}-{localPhone || '__________'} {operator ? ` ${operator}` : ''}
               </div>
             </div>
           </div>
