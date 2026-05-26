@@ -473,6 +473,82 @@ export default function PublicLayout({
               </Button>
             )}
 
+            {/* Mobile locale selectors — visible on small screens beside menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn('h-8 gap-1 rounded-full px-2 md:hidden', headerChromeBtn)}
+                  aria-label={`${region.name} · ${currency.code}`}
+                >
+                  <span className="text-sm leading-none">{region.flag}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide">{currency.code}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-60 rounded-2xl p-1 shadow-[0_12px_40px_rgba(15,23,42,0.12)]">
+                <div className="px-3 py-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Country</p>
+                </div>
+                <div className="max-h-[160px] overflow-y-auto">
+                  {countries.map((c) => (
+                    <DropdownMenuItem
+                      key={c.code}
+                      className={cn('rounded-xl text-xs', c.code === region.code && 'bg-muted font-medium')}
+                      onClick={() => {
+                        setRegion(c.code)
+                        setManualOverride(true)
+                        setLocaleCookiesClient({ country: c.code, manual: true })
+                      }}
+                    >
+                      <span className="mr-2 text-sm">{c.flag}</span>
+                      <span className="flex-1">{c.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+                <DropdownMenuSeparator />
+                <div className="px-3 py-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Currency</p>
+                </div>
+                {NAV_CURRENCIES.map((cur) => (
+                  <DropdownMenuItem
+                    key={cur.code}
+                    className={cn('rounded-xl text-xs', cur.code === currency.code && 'bg-muted font-medium')}
+                    onClick={() => {
+                      setCurrency(cur.code)
+                      setManualOverride(true)
+                      setLocaleCookiesClient({ currency: cur.code, manual: true })
+                    }}
+                  >
+                    <span className="font-mono text-xs font-semibold">{cur.code}</span>
+                    <span className="ml-2 text-muted-foreground">{cur.name}</span>
+                  </DropdownMenuItem>
+                ))}
+                {content.header.showLanguageSelector ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-3 py-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Language</p>
+                    </div>
+                    {content.header.languages.map((lang) => (
+                      <DropdownMenuItem
+                        key={lang.code}
+                        className={cn('rounded-xl text-xs', lang.code === language.code && 'bg-muted font-medium')}
+                        onClick={() => {
+                          setLanguage(lang.code)
+                          setManualOverride(true)
+                          setLocaleCookiesClient({ language: lang.code, manual: true })
+                        }}
+                      >
+                        <span className="mr-2">{lang.flag}</span>
+                        {lang.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Sheet>
               <SheetTrigger asChild>
                 <Button
