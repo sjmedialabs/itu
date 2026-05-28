@@ -1,17 +1,10 @@
 import type { ProviderAdapterKey, ProviderConnector } from '@/lib/providers/types'
 import { dtoneConnector } from '@/lib/providers/dtone-connector'
+import { dingConnector } from '@/lib/providers/ding-connector'
 
 const connectors: Record<ProviderAdapterKey, ProviderConnector> = {
   dtone: dtoneConnector,
-  ding: {
-    adapterKey: 'ding',
-    async fetchRawPlans(_config, _options) {
-      throw new Error('ding connector not implemented')
-    },
-    async normalizePlans() {
-      throw new Error('ding connector not implemented')
-    },
-  },
+  ding: dingConnector,
   reloadly: {
     adapterKey: 'reloadly',
     async fetchRawPlans(_config, _options) {
