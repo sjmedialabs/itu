@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuthStore } from '@/lib/stores'
@@ -26,8 +26,23 @@ export default function AccountLayout({
   const pathname = usePathname()
   const { isAuthenticated, isLoading, user } = useAuthStore()
   const isRegisteredWithEmail = user?.is_registered_with_email ?? false
+  const [isStoreHydrated, setIsStoreHydrated] = useState(false)
 
   useEffect(() => {
+    const p = useAuthStore.persist
+    if (p?.hasHydrated?.()) {
+      setIsStoreHydrated(true)
+    } else {
+      const unsub = p?.onFinishHydration?.(() => {
+        setIsStoreHydrated(true)
+      })
+      return () => unsub?.()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isStoreHydrated) return
+
     if (!isLoading && !isAuthenticated) {
       router.push(`/login?redirect=${pathname}`)
       return
@@ -40,9 +55,9 @@ export default function AccountLayout({
         router.push('/account')
       }
     }
-  }, [isAuthenticated, isRegisteredWithEmail, isLoading, router, pathname])
+  }, [isStoreHydrated, isAuthenticated, isRegisteredWithEmail, isLoading, router, pathname])
 
-  if (!isAuthenticated) {
+  if (!isStoreHydrated || !isAuthenticated) {
     return (
       <div className="w-full px-4 py-12 sm:px-6">
         <div className="flex items-center justify-center">

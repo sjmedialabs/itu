@@ -55,6 +55,7 @@ export function buildUserFromProfile(
     role: clientRole,
     phone: displayPhone,
     countryCode: profile?.country_code ?? undefined,
+    country: profile?.country ?? undefined,
     rewardPoints: 0,
     createdAt: new Date().toISOString(),
     adminPermissions: clientRole === 'admin' ? perms : null,

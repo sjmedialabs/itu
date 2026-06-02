@@ -8,6 +8,7 @@ export interface User {
   role: 'user' | 'reseller' | 'admin' | 'super_admin'
   phone?: string
   countryCode?: string
+  country?: string
   rewardPoints: number
   createdAt: string
   /**

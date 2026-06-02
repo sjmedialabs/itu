@@ -8,8 +8,19 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useAuthStore } from '@/lib/stores'
-import { Camera, Mail, Phone, Calendar, Gift, Loader2, Shield, Eye, EyeOff, CheckCircle2, Lock } from 'lucide-react'
+import { Camera, Mail, Phone, Calendar, Gift, Loader2, Shield, Eye, EyeOff, CheckCircle2, Lock, Check, ChevronDown } from 'lucide-react'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { countriesList, getFlagEmoji } from '@/lib/country-codes'
+import { parsePhoneNumberFromString } from 'libphonenumber-js'
 
 export default function AccountProfilePage() {
   const { user, setSession } = useAuthStore()
@@ -47,13 +58,49 @@ export default function AccountProfilePage() {
   const [isVerifyingUpdate, setIsVerifyingUpdate] = useState(false)
   const [sendingUpdateOtp, setSendingUpdateOtp] = useState(false)
 
+  const [selectedCountryCode, setSelectedCountryCode] = useState('IN')
+  const [selectedDialCode, setSelectedDialCode] = useState('91')
+  const [openCountry, setOpenCountry] = useState(false)
+
+  const resetPhoneFields = (userObj: any) => {
+    const userPhone = userObj?.phone || ''
+    if (userPhone.startsWith('+')) {
+      const parsed = parsePhoneNumberFromString(userPhone)
+      if (parsed) {
+        const cCode = parsed.country || 'IN'
+        const dCode = parsed.countryCallingCode || '91'
+        setSelectedCountryCode(cCode)
+        setSelectedDialCode(dCode)
+        setPhone(parsed.nationalNumber as string)
+        return
+      }
+    }
+    
+    const profileCountry = userObj?.country || 'IN'
+    setSelectedCountryCode(profileCountry)
+    const foundCountry = countriesList.find(c => c.code === profileCountry)
+    const dCode = foundCountry?.dialCode || userObj?.countryCode || '91'
+    setSelectedDialCode(dCode)
+    
+    let displayVal = userPhone
+    if (displayVal.startsWith(`+${dCode}`)) {
+      displayVal = displayVal.slice(dCode.length + 1)
+    } else if (displayVal.startsWith(dCode)) {
+      displayVal = displayVal.slice(dCode.length)
+    }
+    setPhone(displayVal)
+  }
+
   useEffect(() => {
     if (user) {
       setName(user.name || '')
       setEmail(user.email || '')
-      setPhone(user.phone || '')
+      resetPhoneFields(user)
     }
   }, [user])
+
+  const normalizedPhone = phone.replace(/[^\d]/g, '')
+  const fullPhone = normalizedPhone ? `+${selectedDialCode}${normalizedPhone}` : ''
 
   useEffect(() => {
     if (regStep !== 'otp') return
@@ -82,10 +129,11 @@ export default function AccountProfilePage() {
     setUpdating(true)
     setError('')
     try {
+      const latestUser = useAuthStore.getState().user
       const res = await fetch('/api/profile/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), phone: user?.phone || '' }),
+        body: JSON.stringify({ name: name.trim(), phone: latestUser?.phone || '' }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.ok) {
@@ -131,7 +179,7 @@ export default function AccountProfilePage() {
   const handleVerifyUpdateOtp = async () => {
     setVerifyError('')
     setIsVerifyingUpdate(true)
-    const targetValue = verifyStep === 'email' ? email : phone
+    const targetValue = verifyStep === 'email' ? email : fullPhone
     try {
       const res = await fetch('/api/profile/update/verify-otp', {
         method: 'POST',
@@ -159,7 +207,7 @@ export default function AccountProfilePage() {
         setVerifySuccess('Email verified! Sending phone OTP...')
         setTimeout(async () => {
           setVerifySuccess('')
-          await sendUpdateVerificationOtp('phone', phone)
+          await sendUpdateVerificationOtp('phone', fullPhone)
         }, 1500)
       } else {
         setVerifySuccess('Verification successful!')
@@ -178,7 +226,7 @@ export default function AccountProfilePage() {
   const handleSaveChanges = async () => {
     setError('')
     const emailChanged = email.trim().toLowerCase() !== (user?.email ?? '').trim().toLowerCase()
-    const phoneChanged = phone.trim() !== (user?.phone ?? '').trim()
+    const phoneChanged = fullPhone !== (user?.phone ?? '').trim()
 
     if (emailChanged || phoneChanged) {
       setUpdating(true)
@@ -189,7 +237,7 @@ export default function AccountProfilePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: emailChanged ? email.trim() : undefined,
-            phone: phoneChanged ? phone.trim() : undefined,
+            phone: phoneChanged ? fullPhone : undefined,
           }),
         })
         const checkData = await checkRes.json().catch(() => ({}))
@@ -214,7 +262,7 @@ export default function AccountProfilePage() {
         setVerifyDevOtp('')
         setShowVerifyModal(true)
 
-        await sendUpdateVerificationOtp(emailChanged ? 'email' : 'phone', emailChanged ? email : phone)
+        await sendUpdateVerificationOtp(emailChanged ? 'email' : 'phone', emailChanged ? email : fullPhone)
       } catch (err: any) {
         setError(err?.message || 'Failed to update profile.')
       } finally {
@@ -229,7 +277,7 @@ export default function AccountProfilePage() {
   const handleCancel = () => {
     setName(user.name || '')
     setEmail(user.email || '')
-    setPhone(user.phone || '')
+    resetPhoneFields(user)
     setError('')
     setIsEditing(false)
   }
@@ -488,12 +536,62 @@ export default function AccountProfilePage() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Phone Number</label>
               {isEditing ? (
-                <Input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Enter your phone number"
-                />
+                <div className="flex items-center gap-2">
+                  <Popover open={openCountry} onOpenChange={setOpenCountry}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openCountry}
+                        className="flex h-10 items-center gap-1 rounded-xl border border-neutral-200 bg-neutral-50 px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100 shrink-0 min-w-[110px] justify-between shadow-none"
+                      >
+                        <span className="truncate">
+                          {selectedCountryCode ? `${getFlagEmoji(selectedCountryCode)} +${selectedDialCode}` : `+${selectedDialCode}`}
+                        </span>
+                        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search country or code..." />
+                        <CommandList>
+                          <CommandEmpty>No country found.</CommandEmpty>
+                          <CommandGroup className="max-h-[200px] overflow-y-auto">
+                            {countriesList.map((c) => (
+                              <CommandItem
+                                key={c.code}
+                                value={`${c.name} ${c.code} ${c.dialCode}`}
+                                onSelect={() => {
+                                  setSelectedDialCode(c.dialCode)
+                                  setSelectedCountryCode(c.code)
+                                  setOpenCountry(false)
+                                }}
+                                className="flex items-center justify-between py-2 cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">{c.flag}</span>
+                                  <span className="font-medium text-neutral-900">{c.name}</span>
+                                  <span className="text-neutral-400 font-normal">(+{c.dialCode})</span>
+                                </div>
+                                {selectedCountryCode === c.code && (
+                                  <Check className="h-4 w-4 text-[var(--hero-cta-orange)]" />
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <Input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Enter your phone number"
+                    className="h-10 rounded-xl flex-1"
+                  />
+                </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
