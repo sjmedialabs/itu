@@ -96,13 +96,18 @@ export async function POST(req: Request) {
       user: sessionData.user,
     })
 
+    console.log('[2fa/verify] sessionData.session is present:', !!session)
+    console.log('[2fa/verify] session.access_token is present:', !!session?.access_token)
+
     if (session?.access_token) {
+      console.log('[2fa/verify] Setting sb-access-token cookie')
       res.cookies.set('sb-access-token', session.access_token, { ...cookieOptions(), maxAge: 60 * 60 * 24 * 7 })
     }
     if (session?.refresh_token) {
       res.cookies.set('sb-refresh-token', session.refresh_token, { ...cookieOptions(), maxAge: 60 * 60 * 24 * 30 })
     }
 
+    console.log('[2fa/verify] Returning response with cookies:', res.headers.get('set-cookie'))
     return res
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Verification failed'
