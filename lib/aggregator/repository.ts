@@ -502,14 +502,33 @@ export async function aggCleanupSystemOperatorsWithoutPlans(): Promise<number> {
       hasMore = false
       break
     }
+    const retentionDays = Number(process.env.OPERATOR_RETENTION_DAYS || '30')
+    const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+
     for (const row of rows) {
-      // If the operator is active but has no active plans, deactivate it
-      if (row.status === 'ACTIVE' && !activePlanOperatorIds.has(row.id)) {
-        await supabaseRest(`system_operators?id=eq.${encodeURIComponent(row.id)}`, {
-          method: 'PATCH',
-          body: JSON.stringify({ status: 'INACTIVE' }),
-        }).catch(() => {})
-        deactivatedCount++
+      if (activePlanOperatorIds.has(row.id)) {
+        if (row.status !== 'ACTIVE') {
+          await supabaseRest(`system_operators?id=eq.${encodeURIComponent(row.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'ACTIVE' }),
+          }).catch(() => {})
+        }
+      } else {
+        if (row.status === 'ACTIVE') {
+          await supabaseRest(`system_operators?id=eq.${encodeURIComponent(row.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'INACTIVE' }),
+          }).catch(() => {})
+          deactivatedCount++
+        } else if (row.status === 'INACTIVE') {
+          const updatedAt = new Date((row as any).updated_at || Date.now())
+          if (updatedAt < cutoffDate) {
+            await supabaseRest(`system_operators?id=eq.${encodeURIComponent(row.id)}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ status: 'DEPRECATED' }),
+            }).catch(() => {})
+          }
+        }
       }
     }
     if (rows.length < 1000) {
@@ -520,4 +539,85 @@ export async function aggCleanupSystemOperatorsWithoutPlans(): Promise<number> {
   }
 
   return deactivatedCount
+}
+
+export async function aggStartSyncRun(providerCode: string): Promise<string> {
+  const res = await supabaseRest('sync_runs', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      provider_code: providerCode,
+      status: 'running',
+      started_at: new Date().toISOString(),
+    }),
+  })
+  const rows = await jsonRows(res)
+  return rows[0]?.id
+}
+
+export async function aggUpdateSyncRun(runId: string, updates: Record<string, any>) {
+  await supabaseRest(`sync_runs?id=eq.${enc(runId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  }).catch(() => {})
+}
+
+export async function aggInsertClassificationAudit(input: {
+  providerCode: string
+  providerOperatorId?: string | null
+  providerPlanId?: string | null
+  entityType: 'operator' | 'plan'
+  entityName: string
+  decision: string
+  classification: string
+  confidence: number
+  reasonCode: string
+  details?: any
+}) {
+  await supabaseRest('classification_audit', {
+    method: 'POST',
+    body: JSON.stringify({
+      provider_code: input.providerCode,
+      provider_operator_id: input.providerOperatorId ?? null,
+      provider_plan_id: input.providerPlanId ?? null,
+      entity_type: input.entityType,
+      entity_name: input.entityName,
+      decision: input.decision,
+      classification: input.classification,
+      confidence: input.confidence,
+      reason_code: input.reasonCode,
+      details: input.details ?? {},
+    }),
+  }).catch(() => {})
+}
+
+export async function aggInsertClassificationReviewQueue(input: {
+  providerCode: string
+  providerOperatorId?: string | null
+  providerPlanId?: string | null
+  entityType: 'operator' | 'plan'
+  entityName: string
+  category?: string | null
+  subCategory?: string | null
+  benefits?: any
+  rawPayload?: any
+  confidence: number
+}) {
+  await supabaseRest('classification_review_queue?on_conflict=provider_code,entity_type,entity_name', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify({
+      provider_code: input.providerCode,
+      provider_operator_id: input.providerOperatorId ?? null,
+      provider_plan_id: input.providerPlanId ?? null,
+      entity_type: input.entityType,
+      entity_name: input.entityName,
+      category: input.category ?? null,
+      sub_category: input.subCategory ?? null,
+      benefits: input.benefits ?? {},
+      raw_payload: input.rawPayload ?? {},
+      confidence: input.confidence,
+      status: 'PENDING',
+    }),
+  }).catch(() => {})
 }

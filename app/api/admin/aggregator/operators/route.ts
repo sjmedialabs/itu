@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   const country = (searchParams.get('country') ?? '').trim().toUpperCase()
   const providerId = (searchParams.get('providerId') ?? '').trim()
   const q = (searchParams.get('q') ?? '').trim()
+  const status = (searchParams.get('status') ?? '').trim().toUpperCase()
 
   const [rawOperators, systemOperators, providers, mappingsRes] = await Promise.all([
     aggListRawOperators({
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
       offset: Number.isFinite(offset) ? offset : 0,
       country: country || undefined,
       q: q || undefined,
+      status: status || undefined,
       includeAllStatus: true,
     }),
     aggListProviders().catch(() => []),
