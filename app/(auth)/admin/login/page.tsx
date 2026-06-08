@@ -41,6 +41,10 @@ export default function AdminLoginPage() {
     e.preventDefault()
     setError('')
     const result = await login(email.trim(), password, undefined, undefined, 'admin')
+    if (result.ok && result.requires_2fa) {
+      setError('Two-factor verification is required. Sign in at /admin-user/login instead.')
+      return
+    }
     if (result.ok) {
       const u = useAuthStore.getState().user
       if (u && isClientSuperAdmin(u)) {
@@ -48,7 +52,7 @@ export default function AdminLoginPage() {
         return
       }
       if (u && u.role === 'admin') {
-        setError('This account is not authorized here. Please use your dedicated login page.')
+        setError('This account is not authorized here. Please use /admin-user/login.')
         useAuthStore.getState().logout()
         return
       }

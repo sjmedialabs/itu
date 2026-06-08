@@ -17,6 +17,38 @@ function cookieOptions() {
   }
 }
 
+type LoginProfileRow = {
+  id?: string
+  app_role?: string
+  is_active?: boolean
+  totp_enabled?: boolean
+}
+
+function isStaffAppRole(appRole: string | null | undefined, email: string): boolean {
+  const r = (appRole ?? '').trim().toLowerCase()
+  return r === 'admin' || r === 'super_admin' || email === 'admin@itu.com'
+}
+
+/** Profile lookup tolerates older schemas missing optional columns (e.g. is_active). */
+async function fetchLoginProfileByEmail(email: string): Promise<LoginProfileRow | null> {
+  const encEmail = encodeURIComponent(email)
+  const queries = [
+    `profiles?email=eq.${encEmail}&select=id,app_role,is_active,totp_enabled&limit=1`,
+    `profiles?email=eq.${encEmail}&select=id,app_role&limit=1`,
+  ]
+  for (const path of queries) {
+    try {
+      const res = await supabaseRest(path, { cache: 'no-store' })
+      if (!res.ok) continue
+      const rows = (await res.json().catch(() => [])) as LoginProfileRow[]
+      if (rows?.[0]) return rows[0]
+    } catch {
+      /* try fallback select */
+    }
+  }
+  return null
+}
+
 export async function POST(req: Request) {
   let ipAddress = req.headers.get('x-forwarded-for') || '127.0.0.1'
   if (ipAddress.includes(',')) ipAddress = ipAddress.split(',')[0].trim()
@@ -46,20 +78,8 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch profile to check role and is_active status
-    let existingProfile: any = null
-    try {
-      const checkRes = await supabaseRest(`profiles?email=eq.${encodeURIComponent(email)}&select=id,app_role,is_active,totp_enabled&limit=1`)
-      if (checkRes.ok) {
-        const rows = await checkRes.json().catch(() => [])
-        if (rows && rows.length > 0) {
-          existingProfile = rows[0]
-        }
-      }
-    } catch (e) {
-      console.error('Fetch profile login error:', e)
-    }
-
-    const isAdmin = existingProfile?.app_role === 'admin' || existingProfile?.app_role === 'super_admin'
+    const existingProfile = await fetchLoginProfileByEmail(email)
+    const isAdmin = isStaffAppRole(existingProfile?.app_role, email)
 
     // 2. Reject frozen admin accounts immediately
     if (isAdmin && existingProfile?.is_active === false) {
@@ -169,11 +189,16 @@ export async function POST(req: Request) {
     }
 
     const clientUser = user ? buildUserFromProfile(user, profile) : null
+    const isStaff =
+      isAdmin ||
+      isStaffAppRole(profile?.app_role ?? null, email) ||
+      clientUser?.role === 'admin' ||
+      clientUser?.role === 'super_admin'
 
     // 6. Trusted Device check
     let isTrusted = false
-    if (isAdmin && source === 'admin') {
-      isTrusted = true // Skip 2FA for regular admin route
+    if (isStaff && source === 'admin') {
+      isTrusted = true // Staff sign-in at /admin/login — skip 2FA
     } else if (user?.id) {
       try {
         const devRes = await supabaseRest(`trusted_devices?user_id=eq.${encodeURIComponent(user.id)}&device_fingerprint=eq.${encodeURIComponent(fingerprint)}&select=id&limit=1`)
