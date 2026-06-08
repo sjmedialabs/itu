@@ -170,11 +170,37 @@ export async function POST(req: Request) {
 
     const clientUser = user ? buildUserFromProfile(user, profile) : null
 
-    // 6. Trusted Device check
+    // 6. Global 2FA and Trusted Device check
+    let is2FAEnabled = false
+    try {
+      const settingsRes = await supabaseRest(`app_settings?key=eq.global_2fa_settings&select=value&limit=1`)
+      if (settingsRes.ok) {
+        const rows = await settingsRes.json().catch(() => [])
+        if (rows && rows.length > 0 && rows[0]?.value) {
+          is2FAEnabled = Boolean(rows[0].value.enabled)
+        }
+      }
+    } catch (err) {
+      console.error('Fetch global 2FA setting error:', err)
+    }
+
     let isTrusted = false
-    if (isAdmin && source === 'admin') {
-      isTrusted = true // Skip 2FA for regular admin route
+    if (isAdmin) {
+      if (!is2FAEnabled) {
+        isTrusted = true // Skip 2FA if 2FA is globally disabled for admins/super_admins
+      } else if (user?.id) {
+        try {
+          const devRes = await supabaseRest(`trusted_devices?user_id=eq.${encodeURIComponent(user.id)}&device_fingerprint=eq.${encodeURIComponent(fingerprint)}&select=id&limit=1`)
+          if (devRes.ok) {
+            const devRows = await devRes.json().catch(() => [])
+            isTrusted = devRows.length > 0
+          }
+        } catch (e) {
+          console.error('Fetch trusted device error:', e)
+        }
+      }
     } else if (user?.id) {
+      // Regular user flow: check trusted device
       try {
         const devRes = await supabaseRest(`trusted_devices?user_id=eq.${encodeURIComponent(user.id)}&device_fingerprint=eq.${encodeURIComponent(fingerprint)}&select=id&limit=1`)
         if (devRes.ok) {
@@ -199,21 +225,25 @@ export async function POST(req: Request) {
         fingerprint
       }, 15 * 60)
 
+      let otp: string | undefined
       if (method === 'email_otp') {
-        const otp = generateOtp()
+        otp = generateOtp()
         await cacheSetJson(`login_otp:${tempToken}`, otp, 15 * 60)
         await sendLoginOtp({ email, otp })
       }
 
       await logLoginAudit({ userId: user?.id, email, status: '2fa_required', ipAddress, country, userAgent })
 
+      const isDev = process.env.NODE_ENV !== 'production'
+
       return NextResponse.json({
         ok: true, // we say ok: true, but provide requires_2fa so frontend handles it
         requires_2fa: true,
         method,
         temp_token: tempToken,
-        totp_enabled: profile?.totp_enabled ?? false, // useful for frontend if admin needs to setup TOTP
+        totp_enabled: is2FAEnabled, // useful for frontend if admin needs to setup TOTP
         user: clientUser,
+        ...(isDev && otp ? { otp } : {}),
       })
     }
 
