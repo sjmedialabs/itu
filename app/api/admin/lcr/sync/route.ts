@@ -6,7 +6,6 @@ import { normalizeCountryList } from '@/lib/lcr/countries'
 import { invalidatePublicCatalogCache } from '@/lib/catalog/invalidate-public-cache'
 
 export async function POST(request: Request) {
-  if (!isAdminRequest(request)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   if (!(await adminCanManageProviders(request))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }

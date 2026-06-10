@@ -135,6 +135,92 @@ function classifyPlanType(planName: string, benefits: string, dbType?: string): 
   return 'topup'
 }
 
+function removeOperatorName(text: string, operatorName: string): string {
+  let val = (text ?? '').trim()
+  if (!val || !operatorName || operatorName.toLowerCase() === 'unknown') return val
+
+  const escapedOp = operatorName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+  const regex = new RegExp(`\\b${escapedOp}\\b|${escapedOp}`, 'gi')
+
+  let cleaned = val.replace(regex, '')
+  cleaned = cleaned
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*[-–—/|:.]\s*/, '')
+    .replace(/\s*[-–—/|:.]\s*$/, '')
+    .trim()
+
+  return cleaned || val
+}
+
+function elaboratePlanDescription(
+  plan: TopupPlan,
+  countryCode: string,
+  specs: ReturnType<typeof parsePlanSpecs>
+): string {
+  const currentDesc = (plan.benefits ?? '').trim()
+  const isTooSmall = !currentDesc || currentDesc.length <= 15 || currentDesc.toLowerCase() === (plan.planName ?? '').toLowerCase()
+
+  if (!isTooSmall) {
+    return currentDesc
+  }
+
+  const inrValue = plan.price_inr
+  const eurValue = plan.price_eur
+
+  const commonCurrencies: Record<string, string> = {
+    IN: 'INR (₹)',
+    US: 'USD ($)',
+    GB: 'GBP (£)',
+    MX: 'MXN ($)',
+    NG: 'NGN (₦)',
+    GH: 'GHS (GH₵)',
+    KE: 'KES (KSh)',
+    JM: 'JMD (J$)',
+    PH: 'PHP (₱)',
+    BD: 'BDT (৳)',
+    PK: 'PKR (₨)',
+    LK: 'LKR (₨)',
+    NP: 'NPR (₨)',
+    AE: 'AED',
+    SA: 'SAR (SR)',
+    EG: 'EGP',
+    TR: 'TRY (₺)',
+    BR: 'BRL (R$)',
+    CO: 'COP (Col$)',
+    CA: 'CAD (C$)',
+    AU: 'AUD (A$)',
+    ZA: 'ZAR (R)',
+    ID: 'IDR (Rp)',
+    MY: 'MYR (RM)',
+    SG: 'SGD (S$)',
+    TH: 'THB (฿)',
+    VN: 'VND (₫)',
+  }
+  const countryUpper = countryCode.toUpperCase()
+  const localCurrency = commonCurrencies[countryUpper] || 'the local currency'
+
+  const numMatch = currentDesc.match(/[\d.,]+/) || (plan.planName ?? '').match(/[\d.,]+/)
+  const extractedValue = numMatch ? numMatch[0] : null
+  const localValueText = extractedValue 
+    ? `${extractedValue} in ${localCurrency}` 
+    : `the local currency equivalent`
+
+  if (plan.type === 'topup') {
+    const talktimeAmt = specs.calls && specs.calls !== 'Unlimited' ? specs.calls : `INR ${inrValue} / €${eurValue}`
+    const baseDesc = currentDesc ? ` (${currentDesc})` : ''
+    return `Instant airtime top-up plan${baseDesc}. This plan delivers standard talktime credit of approximately ${localValueText}, valued at INR ${inrValue} (€${eurValue}). Perfect for making local/international calls, sending SMS, or using mobile data at standard operator base tariffs.`
+  }
+
+  if (plan.type === 'data') {
+    const dataAmt = plan.data || specs.data || 'high-speed'
+    const validityText = plan.validity && plan.validity !== 'No Expiry' ? `for ${plan.validity}` : 'with standard validity'
+    const baseDesc = currentDesc ? ` (${currentDesc})` : ''
+    return `High-speed internet mobile data pack${baseDesc}. Provides ${dataAmt} data capacity ${validityText}, priced at INR ${inrValue} (€${eurValue}), suitable for ${localValueText}. Ideal for internet browsing, streaming video, downloading files, and social media connectivity.`
+  }
+
+  return currentDesc
+}
+
 
 type OperatorDetectResponse = { operator: string; country: string; providerCode?: string; source?: string }
 type DbProvider = { code: string; name: string; shortName: string }
@@ -174,14 +260,6 @@ export default function TopupPlanSelectionPage() {
   const [providers, setProviders] = useState<DbProvider[]>([])
   const [selectedProviderCode, setSelectedProviderCode] = useState<string>('')
   const [manualOperatorOverride, setManualOperatorOverride] = useState<boolean>(false)
-  // Tracks when the user explicitly picked a country from the dropdown.
-  // When true, auto-detect is NOT allowed to override the country selection.
-  const [manualCountryOverride, setManualCountryOverride] = useState<boolean>(false)
-  // Ref so the detect effect can read the latest countryCode without being
-  // in the dependency array (which caused re-detection on every country change).
-  const countryCodeRef = useRef(countryCode)
-  useEffect(() => { countryCodeRef.current = countryCode }, [countryCode])
-
   const [phoneError, setPhoneError] = useState<boolean>(false)
 
   const effectiveOperatorId = resolvedProviderCode || selectedProviderCode
@@ -193,9 +271,8 @@ export default function TopupPlanSelectionPage() {
   }, [countryCode, localPhone, setPhoneDetails])
 
   useEffect(() => {
-    // Phone number changed → allow auto-detect to run (and override country) again.
+    // Phone number changed → allow auto-detect to run again.
     setManualOperatorOverride(false)
-    setManualCountryOverride(false)
     setSelectedProviderCode('')
     setResolvedProviderCode(undefined)
     setOperator('')
@@ -211,11 +288,17 @@ export default function TopupPlanSelectionPage() {
       if (manualOperatorOverride) return
       setDetecting(true)
       try {
+        // Prepend the selected country's dial prefix if not already present
+        // to ensure detection happens within the chosen country instead of matching other countries' prefixes.
+        const formattedPhone = localPhone.startsWith(dialPrefix)
+          ? localPhone
+          : `${dialPrefix}${localPhone}`
+
         const res = await fetch('/api/operator/detect', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phoneNumber: localPhone, countryCode: countryCodeRef.current }),
+          body: JSON.stringify({ phoneNumber: formattedPhone, countryCode }),
         })
         const data = (await res.json().catch(() => ({}))) as Partial<OperatorDetectResponse>
         const name =
@@ -226,17 +309,6 @@ export default function TopupPlanSelectionPage() {
         const pc =
           res.ok && typeof data.providerCode === 'string' ? data.providerCode.trim() : ''
         setResolvedProviderCode(pc || undefined)
-
-        // Only override the country from auto-detect if the user has NOT manually
-        // selected a country from the dropdown.
-        if (
-          !manualCountryOverride &&
-          res.ok &&
-          data.country &&
-          data.country.toUpperCase() !== countryCodeRef.current.toUpperCase()
-        ) {
-          setPhoneDetails({ countryCode: data.country.toUpperCase(), phoneNumber: localPhone })
-        }
       } catch {
         setOperator('Unknown')
         setResolvedProviderCode(undefined)
@@ -245,9 +317,7 @@ export default function TopupPlanSelectionPage() {
       }
     }
     void run()
-    // NOTE: countryCode is intentionally NOT in deps. We read it via countryCodeRef
-    // to avoid re-triggering detection every time the user changes the country dropdown.
-  }, [localPhone, setOperator, manualOperatorOverride, manualCountryOverride, setPhoneDetails])
+  }, [localPhone, countryCode, dialPrefix, setOperator, manualOperatorOverride])
 
   // Auto-detect is handled automatically, manual selection via form Select dropdown
 
@@ -312,11 +382,26 @@ export default function TopupPlanSelectionPage() {
         })
         // Normalize -1 validity to a human-readable label
         const normalized = valid.map((p) => {
-          const vNum = parseInt(p.validity, 10)
-          const validityVal = (Number.isFinite(vNum) && vNum <= 0) ? 'No Expiry' : p.validity
           const resolvedType = classifyPlanType(p.planName ?? '', p.benefits ?? '', p.type)
+          const cleanName = removeOperatorName(p.planName ?? '', operator)
+          const cleanBenefits = removeOperatorName(p.benefits ?? '', operator)
+          const specs = parsePlanSpecs(p.planName ?? '', p.benefits ?? '')
+
+          const vNum = parseInt(p.validity, 10)
+          const validityVal = resolvedType === 'topup'
+            ? 'Life Time'
+            : (Number.isFinite(vNum) && vNum <= 0) ? 'No Expiry' : p.validity
+
+          const elaboratedBenefits = elaboratePlanDescription(
+            { ...p, planName: cleanName, benefits: cleanBenefits, type: resolvedType, validity: validityVal },
+            countryCode,
+            specs
+          )
+
           return {
             ...p,
+            planName: cleanName,
+            benefits: elaboratedBenefits,
             validity: validityVal,
             type: resolvedType
           }
@@ -391,7 +476,6 @@ export default function TopupPlanSelectionPage() {
                           key={c.code}
                           value={`${c.name} ${c.code} ${c.dialCode}`}
                           onSelect={() => {
-                            setManualCountryOverride(true)   // lock: don't let auto-detect override this
                             setPhoneDetails({ countryCode: c.code, phoneNumber: localPhone })
                             setOpenCountry(false)
                           }}
@@ -564,6 +648,34 @@ export default function TopupPlanSelectionPage() {
 
                         {/* Specs + description column */}
                         <div className="border-t border-neutral-100 bg-white px-5 py-4 md:border-l md:border-t-0 md:py-5">
+                          {plan.type === 'topup' && (
+                            (() => {
+                              const ttMatch = (plan.benefits ?? '').match(/(?:talktime\s+of|talktime|tiempo\s+de\s+conversaci[oó]n|valor|cr[eé]dito)\s*(?:inr|rs\.?|eur|€)?\s*([\d.,]+)/i)
+                              const talktimeText = ttMatch
+                                ? `Talktime Plan of ${ttMatch[0]}`
+                                : `Talktime Plan of INR ${plan.price_inr} (€${plan.price_eur})`
+                              return (
+                                <div className="mb-3.5 flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 border border-emerald-500/20 w-fit">
+                                  <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                                  {talktimeText}
+                                </div>
+                              )
+                            })()
+                          )}
+                          {plan.type === 'data' && (
+                            (() => {
+                              const dataMatch = plan.data || specs.data
+                              const dataText = dataMatch
+                                ? `Data Pack of ${dataMatch}`
+                                : `Data Pack Plan`
+                              return (
+                                <div className="mb-3.5 flex items-center gap-1.5 rounded-lg bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-700 border border-blue-500/20 w-fit">
+                                  <Wifi className="h-3.5 w-3.5 text-blue-600" />
+                                  {dataText}
+                                </div>
+                              )
+                            })()
+                          )}
                           {specItems.length > 0 ? (
                             <div className={cn('grid items-center gap-3', specItems.length === 1 ? 'grid-cols-1' : specItems.length === 2 ? 'grid-cols-2' : 'grid-cols-3')}>
                               {specItems.map((s) => (

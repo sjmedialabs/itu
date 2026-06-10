@@ -157,6 +157,139 @@ function mapPlanType(
   return 'topup'
 }
 
+function removeOperatorName(text: string, operatorName: string): string {
+  let val = (text ?? '').trim()
+  if (!val || !operatorName || operatorName.toLowerCase() === 'unknown') return val
+
+  const escapedOp = operatorName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+  const regex = new RegExp(`\\b${escapedOp}\\b|${escapedOp}`, 'gi')
+
+  let cleaned = val.replace(regex, '')
+  cleaned = cleaned
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*[-–—/|:.]\s*/, '')
+    .replace(/\s*[-–—/|:.]\s*$/, '')
+    .trim()
+
+  return cleaned || val
+}
+
+function parsePlanSpecs(planName: string, benefits: string): {
+  data: string | null
+  calls: string | null
+  sms: string | null
+  validity: string | null
+} {
+  const text = `${planName} ${benefits}`.toLowerCase()
+
+  // ---- DATA ----
+  let data: string | null = null
+  if (/\bdatos?\s+ilimitados?|unlimited\s+data/i.test(text)) {
+    const throttleM = text.match(/(?:after\s+using\s+|después de usar\s*)([\d.]+\s*gb)/i)
+    data = throttleM ? `Unlimited (${throttleM[1].toUpperCase()} FUP)` : 'Unlimited'
+  } else {
+    const dataM = text.match(/(\d+(?:\.\d+)?\s*(?:gb|mb)(?:\/day|\/día)?)/i)
+    if (dataM) data = dataM[1].toUpperCase().replace('DíA', 'Day').replace('DIA', 'Day')
+  }
+
+  // ---- CALLS ----
+  let calls: string | null = null
+  if (/\bul\s+calls?|unlimited\s+(?:local|calls?|voice)|llamadas?\s+(locales?|ilimitadas?)|ilimitad[ao]\s+llamadas?/i.test(text)) {
+    calls = 'Unlimited'
+  } else if (/std\s+(?:and|y)\s+roaming/i.test(text)) {
+    calls = 'Unlimited'
+  } else {
+    const ttM = text.match(/(?:talktime\s+of|tiempo\s+de\s+conversaci[oó]n\s+de)\s+(?:inr|rs\.?)\s*([\d.]+)/i)
+    if (ttM) calls = `₹${ttM[1]} talktime`
+  }
+
+  // ---- SMS ----
+  let sms: string | null = null
+  const smsM = text.match(/(\d+)\s*sms\s*(?:\/day|\/día|per day)?/i)
+  if (smsM) sms = `${smsM[1]} SMS`
+  else if (/unlimited\s+sms|sms\s+ilimitados?/i.test(text)) sms = 'Unlimited'
+
+  // ---- VALIDITY ----
+  let validity: string | null = null
+  const dayM = text.match(/(\d+)\s*d[íi]as?\b|(\d+)\s*days?\b|v[aá]lid(?:o|ez)\s+por\s+(\d+)\s*d[íi]as?/i)
+  if (dayM) {
+    const days = parseInt(dayM[1] ?? dayM[2] ?? dayM[3] ?? '0', 10)
+    validity = days === 1 ? '1 Day' : `${days} Days`
+  }
+
+  return { data, calls, sms, validity }
+}
+
+function elaboratePlanDescription(
+  plan: PublicPlan,
+  countryCodeIso2: string,
+  specs: ReturnType<typeof parsePlanSpecs>
+): string {
+  const currentDesc = (plan.benefits ?? '').trim()
+  const isTooSmall = !currentDesc || currentDesc.length <= 15 || currentDesc.toLowerCase() === (plan.planName ?? '').toLowerCase()
+
+  if (!isTooSmall) {
+    return currentDesc
+  }
+
+  const inrValue = plan.price_inr
+  const eurValue = plan.price_eur
+
+  const commonCurrencies: Record<string, string> = {
+    IN: 'INR (₹)',
+    US: 'USD ($)',
+    GB: 'GBP (£)',
+    MX: 'MXN ($)',
+    NG: 'NGN (₦)',
+    GH: 'GHS (GH₵)',
+    KE: 'KES (KSh)',
+    JM: 'JMD (J$)',
+    PH: 'PHP (₱)',
+    BD: 'BDT (৳)',
+    PK: 'PKR (₨)',
+    LK: 'LKR (₨)',
+    NP: 'NPR (₨)',
+    AE: 'AED',
+    SA: 'SAR (SR)',
+    EG: 'EGP',
+    TR: 'TRY (₺)',
+    BR: 'BRL (R$)',
+    CO: 'COP (Col$)',
+    CA: 'CAD (C$)',
+    AU: 'AUD (A$)',
+    ZA: 'ZAR (R)',
+    ID: 'IDR (Rp)',
+    MY: 'MYR (RM)',
+    SG: 'SGD (S$)',
+    TH: 'THB (฿)',
+    VN: 'VND (₫)',
+  }
+  const countryUpper = countryCodeIso2.toUpperCase()
+  const localCurrency = commonCurrencies[countryUpper] || 'the local currency'
+
+  const numMatch = currentDesc.match(/[\d.,]+/) || (plan.planName ?? '').match(/[\d.,]+/)
+  const extractedValue = numMatch ? numMatch[0] : null
+  const localValueText = extractedValue 
+    ? `${extractedValue} in ${localCurrency}` 
+    : `the local currency equivalent`
+
+  if (plan.type === 'topup') {
+    const talktimeAmt = specs.calls && specs.calls !== 'Unlimited' ? specs.calls : `INR ${inrValue} / €${eurValue}`
+    const baseDesc = currentDesc ? ` (${currentDesc})` : ''
+    return `Instant airtime top-up plan${baseDesc}. This plan delivers standard talktime credit of approximately ${localValueText}, valued at INR ${inrValue} (€${eurValue}). Perfect for making local/international calls, sending SMS, or using mobile data at standard operator base tariffs.`
+  }
+
+  if (plan.type === 'data') {
+    const dataAmt = plan.data || specs.data || 'high-speed'
+    const validityText = plan.validity && plan.validity !== 'No Expiry' ? `for ${plan.validity}` : 'with standard validity'
+    const baseDesc = currentDesc ? ` (${currentDesc})` : ''
+    return `High-speed internet mobile data pack${baseDesc}. Provides ${dataAmt} data capacity ${validityText}, priced at INR ${inrValue} (€${eurValue}), suitable for ${localValueText}. Ideal for internet browsing, streaming video, downloading files, and social media connectivity.`
+  }
+
+  return currentDesc
+}
+
+
 function num(v: unknown, fallback = 0): number {
   const n = Number(v)
   return Number.isFinite(n) ? n : fallback
@@ -625,6 +758,36 @@ export async function fetchPublicPlans(input: {
     } catch {
       plans = []
     }
+  }
+
+  if (plans.length > 0) {
+    const activeOperatorName = operatorName || ''
+    const countryIso2 = countryIso3 ? await resolveIso2FromDb(countryIso3) : (input.countryCode || 'IN')
+    plans = await Promise.all(plans.map(async (p) => {
+      const resolvedType = p.type || mapPlanType(p.type, p.planName, p.benefits)
+      const cleanName = removeOperatorName(p.planName ?? '', activeOperatorName)
+      const cleanBenefits = removeOperatorName(p.benefits ?? '', activeOperatorName)
+      const specs = parsePlanSpecs(cleanName, cleanBenefits)
+
+      const vNum = parseInt(p.validity, 10)
+      const validityVal = resolvedType === 'topup'
+        ? 'Life Time'
+        : (Number.isFinite(vNum) && vNum <= 0) ? 'No Expiry' : p.validity
+
+      const elaboratedBenefits = elaboratePlanDescription(
+        { ...p, planName: cleanName, benefits: cleanBenefits, type: resolvedType, validity: validityVal },
+        countryIso2,
+        specs
+      )
+
+      return {
+        ...p,
+        planName: cleanName,
+        benefits: elaboratedBenefits,
+        validity: validityVal,
+        type: resolvedType,
+      }
+    }))
   }
 
   return applyPlanFilters(plans, { search: input.search, category: input.category }).slice(0, limit)
