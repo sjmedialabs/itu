@@ -30,7 +30,18 @@ type LogRow = {
   fallbackUsed: boolean
   status: string
   createdAt: string
+  metadata?: {
+    routingStrategy: string
+    ruleMatched: string
+    ruleId: string | null
+    ruleProvider: string | null
+    totalAttempts: number
+  }
 }
+
+const GRID_TEMPLATE_COLUMNS =
+  'minmax(140px, 1.4fr) minmax(110px, 1.1fr) minmax(60px, 0.6fr) minmax(90px, 0.9fr) minmax(80px, 0.8fr) minmax(60px, 0.6fr) minmax(110px, 1.1fr) minmax(100px, 1fr) minmax(110px, 1.1fr) minmax(70px, 0.7fr) minmax(120px, 1.2fr) minmax(70px, 0.7fr) minmax(95px, 0.95fr)'
+
 
 type Provider = { id: string; code: string; name: string }
 
@@ -47,6 +58,33 @@ export default function RoutingLogsPage() {
   const [providerId, setProviderId] = useState('ALL')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+
+  const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [details, setDetails] = useState<Record<string, any>>({})
+  const [detailsLoading, setDetailsLoading] = useState<Record<string, boolean>>({})
+
+  const toggleExpand = async (transactionId: string | null) => {
+    if (!transactionId) return
+    if (expandedRow === transactionId) {
+      setExpandedRow(null)
+      return
+    }
+    setExpandedRow(transactionId)
+    if (!details[transactionId]) {
+      setDetailsLoading((prev) => ({ ...prev, [transactionId]: true }))
+      try {
+        const res = await fetch(`/api/admin/routing-logs/detail?transactionId=${transactionId}`, { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          setDetails((prev) => ({ ...prev, [transactionId]: data.attempt }))
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        setDetailsLoading((prev) => ({ ...prev, [transactionId]: false }))
+      }
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -147,47 +185,268 @@ export default function RoutingLogsPage() {
             </Button>
           </div>
 
-          <Table className="min-w-[800px]">
+          <Table className="w-full overflow-x-auto">
             <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Transaction</TableHead>
-                <TableHead>Country</TableHead>
-                <TableHead>Operator</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Cost</TableHead>
-                <TableHead>Status</TableHead>
+              <TableRow className="grid w-full gap-2 items-center px-4" style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
+                <TableHead className="flex items-center">Time</TableHead>
+                <TableHead className="flex items-center">Transaction</TableHead>
+                <TableHead className="flex items-center">Country</TableHead>
+                <TableHead className="flex items-center">Operator</TableHead>
+                <TableHead className="flex items-center">Plan</TableHead>
+                <TableHead className="flex items-center">Type</TableHead>
+                <TableHead className="flex items-center">Strategy</TableHead>
+                <TableHead className="flex items-center">Rule Matched</TableHead>
+                <TableHead className="flex items-center">Rule Provider</TableHead>
+                <TableHead className="flex items-center">Attempts</TableHead>
+                <TableHead className="flex items-center">Provider</TableHead>
+                <TableHead className="flex items-center">Cost</TableHead>
+                <TableHead className="flex items-center">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={13} className="py-8 text-center text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
               ) : logs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={13} className="py-8 text-center text-muted-foreground">
                     No routing logs yet.
                   </TableCell>
                 </TableRow>
               ) : (
-                logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>{new Date(log.createdAt).toLocaleString()}</TableCell>
-                    <TableCell className="font-mono text-xs">{log.transactionId ?? '—'}</TableCell>
-                    <TableCell>{log.countryId ?? '—'}</TableCell>
-                    <TableCell>{log.operatorId ?? '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant={log.routingType === 'RULE' ? 'default' : 'secondary'}>{log.routingType}</Badge>
-                    </TableCell>
-                    <TableCell>{log.providerName ?? log.providerCode ?? '—'}</TableCell>
-                    <TableCell>{log.providerCost != null ? log.providerCost.toFixed(2) : '—'}</TableCell>
-                    <TableCell>{log.status}</TableCell>
-                  </TableRow>
-                ))
+                logs.map((log) => {
+                  const isExpanded = expandedRow === log.transactionId
+                  const detail = log.transactionId ? details[log.transactionId] : null
+                  const isDetailLoading = log.transactionId ? detailsLoading[log.transactionId] : false
+
+                  const strategy = log.metadata?.routingStrategy ?? '—'
+                  const ruleMatched = log.metadata?.ruleMatched ?? '—'
+                  const ruleProvider = log.metadata?.ruleProvider ?? '—'
+                  const totalAttempts = log.metadata?.totalAttempts ?? (log.fallbackUsed ? '> 1' : '1')
+
+                  return (
+                    <tr key={log.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                      <td colSpan={13} className="p-0">
+                        {/* Summary Header Row */}
+                        <div 
+                          className="flex items-center w-full cursor-pointer p-4 select-none hover:bg-muted/50" 
+                          onClick={() => toggleExpand(log.transactionId)}
+                        >
+                          <div className="grid w-full items-center text-sm gap-2" style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
+                            <div>{new Date(log.createdAt).toLocaleString()}</div>
+                            <div className="font-mono text-xs truncate" title={log.transactionId ?? ''}>{log.transactionId ?? '—'}</div>
+                            <div>{log.countryId ?? '—'}</div>
+                            <div className="truncate" title={log.operatorId ?? ''}>{log.operatorId ?? '—'}</div>
+                            <div className="font-mono text-xs truncate" title={log.productId ?? ''}>{log.productId ?? '—'}</div>
+                            <div>
+                              <Badge variant={log.routingType === 'RULE' ? 'default' : 'secondary'}>{log.routingType}</Badge>
+                            </div>
+                            <div className="font-semibold text-primary">{strategy}</div>
+                            <div>
+                              <Badge variant={ruleMatched === 'Yes' ? 'default' : 'outline'}>{ruleMatched}</Badge>
+                            </div>
+                            <div className="truncate" title={ruleProvider}>{ruleProvider}</div>
+                            <div className="font-semibold">{totalAttempts}</div>
+                            <div>{log.providerName ?? log.providerCode ?? '—'}</div>
+                            <div>{log.providerCost != null ? log.providerCost.toFixed(2) : '—'}</div>
+                            <div>
+                              <Badge 
+                                variant={
+                                  log.status === 'success' || log.status === 'completed' 
+                                    ? 'success' 
+                                    : log.status === 'failed' 
+                                      ? 'destructive' 
+                                      : 'outline'
+                                }
+                              >
+                                {log.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Expanded details container */}
+                        {isExpanded && (
+                          <div className="bg-muted/20 border-t p-6 space-y-6">
+                            {isDetailLoading ? (
+                              <div className="py-4 text-center text-sm text-muted-foreground">Loading audit details...</div>
+                            ) : !detail ? (
+                              <div className="py-4 text-center text-sm text-muted-foreground">No detailed attempts logged for this transaction.</div>
+                            ) : (
+                              <div className="space-y-6">
+                                {/* Header Summary */}
+                                <div className="grid grid-cols-2 gap-4 md:grid-cols-5 bg-card p-4 rounded-lg border text-sm shadow-sm">
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Routing Strategy</div>
+                                    <div className="font-semibold text-primary">{detail.routing_decision?.routing_strategy ?? detail.routing_decision?.routingStrategy ?? '—'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Rule Matched</div>
+                                    <div className="font-semibold">{(detail.routing_decision?.routing_rule_matched ?? detail.routing_decision?.ruleMatched) ? 'Yes' : 'No'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Rule Provider</div>
+                                    <div className="font-semibold">{detail.routing_decision?.routing_rule_provider ?? detail.routing_decision?.ruleProvider ?? '—'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Total Attempts</div>
+                                    <div className="font-semibold">{detail.attempts?.length ?? 0}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Final Outcome</div>
+                                    <div className="font-semibold">
+                                      <Badge variant={detail.status === 'success' ? 'success' : 'destructive'}>
+                                        {detail.status === 'success' ? 'Success' : 'Failed'}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Split Details View */}
+                                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                                  
+                                  {/* Column 1: Provider Mapping Integrity Check Metrics */}
+                                  <div className="bg-card rounded-lg border p-4 shadow-sm space-y-3">
+                                    <h4 className="text-sm font-semibold border-b pb-2 text-primary">Provider Mapping Integrity Check</h4>
+                                    <div className="grid grid-cols-2 gap-4 text-xs">
+                                      <div className="col-span-2">
+                                        <div className="text-muted-foreground">Internal Plan ID</div>
+                                        <div className="font-semibold font-mono break-all">{detail.internal_plan_id ?? '—'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Mapping Count</div>
+                                        <div className="font-semibold text-sm">{detail.routing_decision?.mapping_count ?? '0'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Candidate Provider Count</div>
+                                        <div className="font-semibold text-sm">{detail.routing_decision?.candidate_provider_count ?? '0'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Eligible Provider Count</div>
+                                        <div className="font-semibold text-sm">{detail.routing_decision?.eligible_provider_count ?? '0'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Selected Provider</div>
+                                        <div className="font-semibold text-sm text-primary">{detail.routing_decision?.selected_provider ?? '—'}</div>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <div className="text-muted-foreground">Routing Decision Reason</div>
+                                        <div className="font-semibold text-sm mt-1">
+                                          <Badge variant="outline">{detail.routing_decision?.routing_decision_reason ?? '—'}</Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Column 2: Candidate Snapshots */}
+                                  <div className="bg-card rounded-lg border p-4 shadow-sm space-y-3">
+                                    <h4 className="text-sm font-semibold border-b pb-2 text-primary">Evaluated Providers Snapshot</h4>
+                                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                                      {(() => {
+                                        const evaluatedList = detail.routing_decision?.evaluated_providers ?? detail.routing_decision?.evaluatedProviders ?? []
+                                        return Array.isArray(evaluatedList) && evaluatedList.length > 0 ? (
+                                          evaluatedList.map((ev: any, idx: number) => {
+                                            const providerName = ev.providerName || ev.providerId || ev.provider || '—'
+                                            const isEligible = ev.eligibility ?? ev.eligible ?? false
+                                            const cost = ev.costPrice ?? ev.cost
+                                            const margin = ev.margin
+                                            const priority = ev.priority
+                                            const reason = ev.filterReason ?? ev.reason
+                                            const isSelected = ev.providerId === detail.routing_decision?.selected_provider || ev.provider === detail.routing_decision?.selected_provider || providerName === detail.routing_decision?.selected_provider
+
+                                            return (
+                                              <div 
+                                                key={idx} 
+                                                className={`flex flex-col p-3 rounded border text-xs gap-1 ${
+                                                  isSelected 
+                                                    ? 'border-primary bg-primary/5 shadow-sm' 
+                                                    : isEligible 
+                                                      ? 'bg-muted/20' 
+                                                      : 'bg-muted/10 opacity-60'
+                                                }`}
+                                              >
+                                                <div className="flex justify-between items-center">
+                                                  <span className="font-semibold text-sm">{providerName}</span>
+                                                  <div className="flex gap-2">
+                                                    {priority != null && <Badge variant="outline" className="text-[10px]">Priority {priority}</Badge>}
+                                                    <Badge variant={isEligible ? 'success' : 'destructive'} className="text-[10px]">
+                                                      {isEligible ? 'Eligible' : 'Filtered'}
+                                                    </Badge>
+                                                  </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 mt-1 text-muted-foreground">
+                                                  <div>Cost: <span className="font-medium text-foreground">{cost != null && cost !== Infinity ? cost.toFixed(2) : 'N/A'}</span></div>
+                                                  <div>Margin: <span className="font-medium text-foreground">{margin != null ? `${margin}%` : 'N/A'}</span></div>
+                                                </div>
+                                                {!isEligible && reason && (
+                                                  <div className="text-destructive mt-1 font-medium bg-destructive/5 px-1.5 py-0.5 rounded border border-destructive/10">Reason: {reason}</div>
+                                                )}
+                                              </div>
+                                            )
+                                          })
+                                        ) : (
+                                          <div className="text-center text-xs text-muted-foreground py-4">No candidates evaluated.</div>
+                                        )
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  {/* Column 3: Execution Hop Timeline */}
+                                  <div className="bg-card rounded-lg border p-4 shadow-sm space-y-3">
+                                    <h4 className="text-sm font-semibold border-b pb-2 text-primary">Attempt Timeline</h4>
+                                    <div className="relative pl-6 space-y-4 border-l border-muted max-h-[350px] overflow-y-auto pr-1">
+                                      {Array.isArray(detail.attempts) && detail.attempts.length > 0 ? (
+                                        detail.attempts.map((hop: any, idx: number) => (
+                                          <div key={idx} className="relative">
+                                            {/* Timeline bullet */}
+                                            <span className={`absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border text-[9px] font-bold ${
+                                              hop.ok 
+                                                ? 'bg-emerald-500 border-emerald-600 text-white shadow shadow-emerald-500/20' 
+                                                : 'bg-rose-500 border-rose-600 text-white shadow shadow-rose-500/20'
+                                            }`}>
+                                              {idx + 1}
+                                            </span>
+                                            <div className="space-y-1">
+                                              <div className="flex items-center justify-between">
+                                                <span className="font-semibold text-xs text-foreground">
+                                                  Attempt #{idx + 1}: {hop.providerName}
+                                                </span>
+                                                <Badge variant={hop.ok ? 'success' : 'destructive'} className="text-[10px]">
+                                                  {hop.ok ? 'Success' : 'Failed'}
+                                                </Badge>
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
+                                                <div>Source: <span className="font-medium text-foreground">{hop.source}</span></div>
+                                                <div>Cost: <span className="font-medium text-foreground">{hop.cost != null ? hop.cost.toFixed(2) : '—'}</span></div>
+                                              </div>
+                                              {!hop.ok && (
+                                                <div className="text-[10px] text-destructive bg-rose-50/50 p-2 rounded border border-rose-100 mt-1 font-mono">
+                                                  {hop.error || 'Unknown Error'}
+                                                  {hop.errorCode && <span className="block font-semibold">Error Code: {hop.errorCode}</span>}
+                                                  {hop.errorMessage && <span className="block">Message: {hop.errorMessage}</span>}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="text-center text-xs text-muted-foreground py-4">No attempts recorded yet.</div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </TableBody>
           </Table>

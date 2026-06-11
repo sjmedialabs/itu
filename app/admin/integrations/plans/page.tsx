@@ -50,16 +50,17 @@ export default function ProviderPlansPage() {
       collectionKey={collectionKey}
       filters={{ searchPlaceholder: 'Search plan name, ID, amount…' }}
       columns={columns}
-      renderRowActions={() => (
-        <IntegrationRowActions>
-          <Button size="sm" variant="outline" asChild>
-            <Link href="/admin/products">Products</Link>
-          </Button>
-          <Button size="sm" variant="ghost" asChild>
-            <Link href="/admin/integrations/plan-mapping">Map</Link>
-          </Button>
-        </IntegrationRowActions>
-      )}
-    />
+      // renderRowActions={() => (
+      //   <IntegrationRowActions>
+      //     <Button size="sm" variant="outline" asChild>
+      //       <Link href="/admin/products">Products</Link>
+      //     </Button>
+      //     <Button size="sm" variant="ghost" asChild>
+      //       <Link href="/admin/integrations/plan-mapping">Map</Link>
+      //     </Button>
+      //   </IntegrationRowActions>
+      // )}
+   
+      />
   )
 }

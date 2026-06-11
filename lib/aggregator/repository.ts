@@ -1031,6 +1031,173 @@ export async function aggMergeSystemOperators(targetOperatorId: string, sourceOp
   return { success: true, logs }
 }
 
+export async function aggMergeInternalPlans(targetPlanId: string, sourcePlanIds: string[], actorEmail: string = 'system') {
+  // 1. Verify target plan exists
+  const targetRes = await supabaseRest(
+    `internal_plans?id=eq.${encodeURIComponent(targetPlanId)}&select=*&limit=1`,
+    { cache: 'no-store' }
+  )
+  if (!targetRes.ok) throw new Error(`Failed to check target plan: ${await targetRes.text()}`)
+  const targetRows = await targetRes.json() as any[]
+  if (targetRows.length === 0) {
+    throw new Error('Target plan not found')
+  }
+  const targetPlan = targetRows[0]
+
+  const logs: string[] = []
+
+  // 2. Process each source plan
+  for (const sourceId of sourcePlanIds) {
+    if (sourceId === targetPlanId) continue
+
+    // Get source plan info for logging
+    const sourceRes = await supabaseRest(
+      `internal_plans?id=eq.${encodeURIComponent(sourceId)}&select=*&limit=1`,
+      { cache: 'no-store' }
+    )
+    if (!sourceRes.ok) continue
+    const sourceRows = await sourceRes.json() as any[]
+    if (sourceRows.length === 0) continue
+    const sourcePlan = sourceRows[0]
+
+    // 2.1 Update lcr_v2_recharge_attempts
+    await supabaseRest(`lcr_v2_recharge_attempts?internal_plan_id=eq.${encodeURIComponent(sourceId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ internal_plan_id: targetPlanId }),
+    }).catch((err) => console.error('Failed to update attempts:', err))
+
+    // 2.2 Update internal_plan_provider_mapping
+    const mappingsRes = await supabaseRest(
+      `internal_plan_provider_mapping?internal_plan_id=eq.${encodeURIComponent(sourceId)}&select=*`,
+      { cache: 'no-store' }
+    )
+    if (mappingsRes.ok) {
+      const mappings = await mappingsRes.json() as any[]
+      for (const m of mappings) {
+        // Check if target plan already has this mapping
+        const conflictRes = await supabaseRest(
+          `internal_plan_provider_mapping?internal_plan_id=eq.${encodeURIComponent(
+            targetPlanId
+          )}&provider_id=eq.${encodeURIComponent(m.provider_id)}&provider_plan_id=eq.${encodeURIComponent(
+            m.provider_plan_id
+          )}&select=id&limit=1`,
+          { cache: 'no-store' }
+        )
+        const conflictRows = conflictRes.ok ? await conflictRes.json() as any[] : []
+        if (conflictRows.length > 0) {
+          // Mapping conflict, delete the source mapping
+          await supabaseRest(`internal_plan_provider_mapping?id=eq.${encodeURIComponent(m.id)}`, {
+            method: 'DELETE',
+          })
+        } else {
+          // No conflict, patch the mapping to point to targetPlanId
+          await supabaseRest(`internal_plan_provider_mapping?id=eq.${encodeURIComponent(m.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ internal_plan_id: targetPlanId }),
+          })
+        }
+      }
+    }
+
+    // 2.3 Update system_plans
+    await supabaseRest(`system_plans?internal_plan_id=eq.${encodeURIComponent(sourceId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ internal_plan_id: targetPlanId }),
+    }).catch((err) => console.error('Failed to update system_plans:', err))
+
+    // 2.4 Delete the source plan
+    await supabaseRest(`internal_plans?id=eq.${encodeURIComponent(sourceId)}`, {
+      method: 'DELETE',
+    })
+
+    logs.push(`Merged plan '${sourcePlan.uti_plan_name || sourceId}' into '${targetPlan.uti_plan_name || targetPlanId}'`)
+  }
+
+  // Audit Log
+  await aggAudit({
+    actor: actorEmail,
+    action: 'plans.merge',
+    entityType: 'internal_plan',
+    entityId: targetPlanId,
+    after: targetPlan,
+    details: {
+      targetPlanId,
+      sourcePlanIds,
+      logs,
+    },
+  }).catch(() => {})
+
+  return { success: true, logs }
+}
+
+export async function aggMergeSystemPlans(targetSystemPlanId: string, sourceSystemPlanIds: string[], actorEmail: string = 'system') {
+  // 1. Verify target system plan exists
+  const targetRes = await supabaseRest(
+    `system_plans?id=eq.${encodeURIComponent(targetSystemPlanId)}&select=*&limit=1`,
+    { cache: 'no-store' }
+  )
+  if (!targetRes.ok) throw new Error(`Failed to check target system plan: ${await targetRes.text()}`)
+  const targetRows = await targetRes.json() as any[]
+  if (targetRows.length === 0) {
+    throw new Error('Target system plan not found')
+  }
+  const targetSystemPlan = targetRows[0]
+  const targetInternalPlanId = targetSystemPlan.internal_plan_id
+
+  if (!targetInternalPlanId) {
+    throw new Error('Target system plan is not linked to an internal plan, cannot merge.')
+  }
+
+  const logs: string[] = []
+
+  // 2. Process each source system plan
+  for (const sourceId of sourceSystemPlanIds) {
+    if (sourceId === targetSystemPlanId) continue
+
+    // Get source plan info
+    const sourceRes = await supabaseRest(
+      `system_plans?id=eq.${encodeURIComponent(sourceId)}&select=*&limit=1`,
+      { cache: 'no-store' }
+    )
+    if (!sourceRes.ok) continue
+    const sourceRows = await sourceRes.json() as any[]
+    if (sourceRows.length === 0) continue
+    const sourcePlan = sourceRows[0]
+    const sourceInternalPlanId = sourcePlan.internal_plan_id
+
+    // If there is an internal plan, merge it
+    if (sourceInternalPlanId && sourceInternalPlanId !== targetInternalPlanId) {
+      const mergeInternalRes = await aggMergeInternalPlans(targetInternalPlanId, [sourceInternalPlanId], actorEmail)
+      if (mergeInternalRes.success) {
+        logs.push(...mergeInternalRes.logs)
+      }
+    }
+
+    // Delete the source system plan
+    await supabaseRest(`system_plans?id=eq.${encodeURIComponent(sourceId)}`, {
+      method: 'DELETE',
+    })
+
+    logs.push(`Merged system plan '${sourcePlan.system_plan_name || sourceId}' into '${targetSystemPlan.system_plan_name || targetSystemPlanId}'`)
+  }
+
+  // Audit Log
+  await aggAudit({
+    actor: actorEmail,
+    action: 'system_plans.merge',
+    entityType: 'system_plan',
+    entityId: targetSystemPlanId,
+    after: targetSystemPlan,
+    details: {
+      targetSystemPlanId,
+      sourceSystemPlanIds,
+      logs,
+    },
+  }).catch(() => {})
+
+  return { success: true, logs }
+}
+
 export function getNormalizedBaseName(name: string, countryName: string, iso2: string, iso3: string): string {
   let normalized = name.toLowerCase();
 

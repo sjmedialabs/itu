@@ -59,6 +59,7 @@ export async function POST(request: Request) {
             error: 'error' in v2 ? v2.error : 'LCR v2 failed',
             decision: 'decision' in v2 ? v2.decision : undefined,
             attempts: 'attempts' in v2 ? v2.attempts : undefined,
+            hints: 'hints' in v2 ? v2.hints : undefined,
           },
           { status: v2.status }
         )
@@ -77,6 +78,7 @@ export async function POST(request: Request) {
           success: true,
           order: { ...order, countryCode, carrierCode, carrierName, receiveAmount, receiveCurrency },
           lcr: { v2: true, cached: true, decision: v2.attempt.routing_decision },
+          hints: 'hints' in v2 ? v2.hints : undefined,
           message: 'Recharge completed (idempotent replay)',
         })
       }
@@ -102,11 +104,12 @@ export async function POST(request: Request) {
           success: true,
           order: { ...order, countryCode, carrierCode, carrierName, receiveAmount, receiveCurrency },
           lcr: { v2: true, decision: v2.decision, attempts: v2.attempts },
+          hints: 'hints' in v2 ? v2.hints : undefined,
           message: 'Recharge processed via LCR v2',
         })
       }
 
-      return NextResponse.json({ success: false, error: 'Unexpected LCR v2 response' }, { status: 500 })
+      return NextResponse.json({ success: false, error: 'Unexpected LCR v2 response', hints: 'hints' in v2 ? v2.hints : undefined }, { status: 500 })
     }
 
     if (!skuCode || !sendAmount || !phoneNumber) {

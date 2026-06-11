@@ -11,5 +11,5 @@ export async function syncProviderCatalog(providerId: string, options?: SyncCata
     throw new Error('Aggregator staging schema not initialized')
   }
 
-  return runFullSyncPipeline(providerId)
+  return runFullSyncPipeline(providerId, options)
 }

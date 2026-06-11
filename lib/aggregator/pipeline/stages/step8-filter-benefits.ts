@@ -5,6 +5,7 @@ import {
   aggInsertCatalogReviewQueue,
 } from '@/lib/aggregator/repository'
 import { CatalogIntelligenceEngine } from '@/lib/aggregator/catalog-intelligence'
+import { dbUpsertInternalPlanMapping } from '@/lib/uti/repository'
 
 export async function runStep8FilterBenefits(
   providerId: string,
@@ -80,6 +81,8 @@ export async function runStep8FilterBenefits(
       body: JSON.stringify(systemPatch),
     }).catch(() => {})
 
+    const isEnabled = !(isDigital || planIntel.catalogStatus === 'NON_TELECOM' || planIntel.catalogStatus === 'QUARANTINED')
+
     if (isDigital || planIntel.catalogStatus === 'NON_TELECOM' || planIntel.catalogStatus === 'QUARANTINED') {
       quarantinedPlans++
       if (isDigital || planIntel.shouldQuarantine) {
@@ -101,6 +104,28 @@ export async function runStep8FilterBenefits(
       reviewPlans++
     } else {
       activePlans++
+    }
+
+    // Sync the final LCR mapping status (enabled/disabled) based on classification outcome
+    try {
+      const sysPlanRes = await supabaseRest(`system_plans?id=eq.${sysPlanId}&select=internal_plan_id,amount,currency`, { cache: 'no-store' })
+      const sysPlanRows = await sysPlanRes.json().catch(() => []) as any[]
+      const internalPlanId = sysPlanRows[0]?.internal_plan_id
+
+      if (internalPlanId) {
+        await dbUpsertInternalPlanMapping({
+          internalPlanId,
+          providerId,
+          providerPlanId: rawPlan.provider_plan_id,
+          providerPrice: rawPlan.amount ?? sysPlanRows[0]?.amount ?? 0,
+          providerCurrency: rawPlan.currency ?? sysPlanRows[0]?.currency ?? 'USD',
+          providerPriority: config.priority ?? 100,
+          margin: 0,
+          enabled: isEnabled,
+        })
+      }
+    } catch (err) {
+      console.error('Failed to sync internal_plan_provider_mapping in benefit filter stage:', err)
     }
   }
 

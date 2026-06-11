@@ -3,15 +3,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { Check, ChevronsUpDown, Package, RefreshCcw } from 'lucide-react'
+import { Check, ChevronsUpDown, Package, RefreshCcw, Loader2, GitMerge } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { normalizeCountryIso3, countryDisplayName } from '@/lib/lcr/countries'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 
 type ProductPlan = {
   id: string
@@ -22,7 +34,13 @@ type ProductPlan = {
   active: boolean
 }
 
-type CountryOption = { iso3: string; planCount: number }
+type CountryOption = {
+  code: string
+  iso3: string
+  name: string
+  flag: string
+  dialCode: string
+}
 
 const CATEGORIES = ['topup', 'data', 'combo', 'airtime'] as const
 
@@ -117,7 +135,7 @@ function buildQuery(params: Record<string, string | undefined>) {
   return `?${q.toString()}`
 }
 
-const PAGE_SIZE = 20
+
 
 export default function AdminProductsPage() {
   const [plans, setPlans] = useState<ProductPlan[]>([])
@@ -133,10 +151,93 @@ export default function AdminProductsPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false)
+  const [targetPlanId, setTargetPlanId] = useState<string>('')
+  const [merging, setMerging] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  const countryNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const c of countryOptions) {
+      if (c.name) {
+        if (c.iso3) map.set(c.iso3.trim().toUpperCase(), c.name.trim())
+        if (c.code) map.set(c.code.trim().toUpperCase(), c.name.trim())
+      }
+    }
+    return map
+  }, [countryOptions])
+
+  const selectedPlans = useMemo(() => {
+    return plans.filter((p) => selectedIds.includes(p.id))
+  }, [plans, selectedIds])
 
   useEffect(() => {
     setPage(1)
-  }, [countryFilter, operatorFilter, planNameFilter, categoryFilter, statusFilter])
+    setSelectedIds([])
+  }, [countryFilter, operatorFilter, planNameFilter, categoryFilter, statusFilter, pageSize])
+
+  const togglePlanStatus = async (id: string, currentActive: boolean) => {
+    setTogglingId(id)
+    const newActive = !currentActive
+    try {
+      const res = await fetch(`/api/admin/lcr/system-plans`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, active: newActive }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Failed to update plan status')
+
+      // Update local state directly
+      setPlans((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, active: newActive } : p))
+      )
+      toast.success(`Plan set to ${newActive ? 'Active' : 'Inactive'}`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update plan status')
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const handleMerge = async () => {
+    if (!targetPlanId) {
+      toast.error('Please select a target plan')
+      return
+    }
+    const sourcePlanIds = selectedIds.filter((id) => id !== targetPlanId)
+    if (sourcePlanIds.length === 0) {
+      toast.error('At least one source plan must be merged')
+      return
+    }
+
+    setMerging(true)
+    try {
+      const res = await fetch('/api/admin/lcr/system-plans/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetPlanId,
+          sourcePlanIds,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Merge failed')
+
+      toast.success('Plans merged successfully')
+      setMergeDialogOpen(false)
+      setSelectedIds([])
+      setTargetPlanId('')
+      await load()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to merge plans')
+    } finally {
+      setMerging(false)
+    }
+  }
 
   const appliedCountry = useMemo(
     () => (countryFilter === 'all' ? '' : normalizeCountryIso3(countryFilter)),
@@ -155,7 +256,7 @@ export default function AdminProductsPage() {
 
   const loadCountries = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/lcr/countries', { credentials: 'include', cache: 'no-store' })
+      const res = await fetch('/api/countries', { cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) return
       setCountryOptions(Array.isArray(data?.countries) ? data.countries : [])
@@ -175,10 +276,10 @@ export default function AdminProductsPage() {
         category: categoryFilter,
         status: statusFilter,
       })
-      const res = await fetch(`/api/admin/lcr/internal-plans${query}`, { credentials: 'include', cache: 'no-store' })
+      const res = await fetch(`/api/admin/lcr/system-plans${query}`, { credentials: 'include', cache: 'no-store' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error ?? 'Failed to load products')
-      setPlans(Array.isArray(data?.internalPlans) ? data.internalPlans : [])
+      setPlans(Array.isArray(data?.systemPlans) ? data.systemPlans : [])
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load products'
       setLoadError(message)
@@ -238,28 +339,45 @@ export default function AdminProductsPage() {
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(plans.length / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(plans.length / pageSize))
   const paginatedPlans = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    return plans.slice(start, start + PAGE_SIZE)
-  }, [plans, page])
+    const start = (page - 1) * pageSize
+    return plans.slice(start, start + pageSize)
+  }, [plans, page, pageSize])
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Products</h1>
+          <h1 className="text-2xl font-bold">Plans</h1>
           <p className="text-muted-foreground">
             Catalog plans from all synced countries. Use column filters below — leave country on &quot;All countries&quot; for the full catalog.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {selectedIds.length >= 2 ? (
+            <Button
+              variant="default"
+              onClick={() => {
+                setTargetPlanId(selectedIds[0] || '')
+                setMergeDialogOpen(true)
+              }}
+              className="bg-primary text-primary-foreground hover:bg-primary/95 animate-fade-in"
+            >
+              <GitMerge className="mr-2 size-4" />
+              Merge Plans ({selectedIds.length})
+            </Button>
+          ) : null}
           <Button variant="outline" onClick={() => void load()} disabled={loading}>
             <RefreshCcw className="mr-2 size-4" />
             Refresh
           </Button>
           <Button onClick={() => void triggerSync()} disabled={refreshing}>
-            {refreshing ? 'Syncing…' : appliedCountry ? `Sync ${appliedCountry}` : 'Sync all countries'}
+            {refreshing
+              ? 'Syncing…'
+              : appliedCountry
+                ? `Sync ${countryNameMap.get(appliedCountry) || appliedCountry}`
+                : 'Sync all countries'}
           </Button>
         </div>
       </div>
@@ -275,13 +393,32 @@ export default function AdminProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[32%]">Plan name</TableHead>
+                <TableHead className="w-[50px]">
+                  <Checkbox
+                    checked={
+                      paginatedPlans.length > 0 &&
+                      paginatedPlans.every((p) => selectedIds.includes(p.id))
+                    }
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        const pageIds = paginatedPlans.map((p) => p.id)
+                        setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])))
+                      } else {
+                        const pageIds = paginatedPlans.map((p) => p.id)
+                        setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)))
+                      }
+                    }}
+                  />
+                </TableHead>
+                <TableHead className="w-[28%]">Plan name</TableHead>
                 <TableHead className="w-[12%]">Country</TableHead>
-                <TableHead className="w-[28%]">Operator name</TableHead>
-                <TableHead className="w-[14%]">Category</TableHead>
-                <TableHead className="w-[14%]">Status</TableHead>
+                <TableHead className="w-[24%]">Operator name</TableHead>
+                <TableHead className="w-[12%]">Category</TableHead>
+                <TableHead className="w-[12%]">Status</TableHead>
+                <TableHead className="w-[12%] text-right">Action</TableHead>
               </TableRow>
               <TableRow className="hover:bg-transparent">
+                <TableHead className="py-2"></TableHead>
                 <TableHead className="py-2 font-normal normal-case">
                   <Input
                     placeholder="Search plan…"
@@ -297,8 +434,8 @@ export default function AdminProductsPage() {
                     placeholder="Country"
                     allLabel="All countries"
                     options={countryOptions.map((c) => ({
-                      value: c.iso3,
-                      label: `${c.iso3} — ${countryDisplayName(c.iso3, c.iso3)} (${c.planCount})`,
+                      value: c.iso3 ? c.iso3.toUpperCase() : c.code ? c.code.toUpperCase() : '',
+                      label: `${c.flag || '🌍'} ${c.name} (${c.iso3 ? c.iso3.toUpperCase() : c.code ? c.code.toUpperCase() : ''})`,
                     }))}
                   />
                 </TableHead>
@@ -331,26 +468,50 @@ export default function AdminProductsPage() {
                     ]}
                   />
                 </TableHead>
+                <TableHead className="py-2"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     Loading products…
                   </TableCell>
                 </TableRow>
               ) : plans.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     No products match your filters. Sync providers to ingest plans from more countries.
                   </TableCell>
                 </TableRow>
               ) : (
                 paginatedPlans.map((plan) => (
                   <TableRow key={plan.id}>
+                    <TableCell className="w-[50px]">
+                      <Checkbox
+                        checked={selectedIds.includes(plan.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedIds((prev) => [...prev, plan.id])
+                          } else {
+                            setSelectedIds((prev) => prev.filter((id) => id !== plan.id))
+                          }
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{plan.plan_name}</TableCell>
-                    <TableCell>{plan.country_iso3 || '—'}</TableCell>
+                    <TableCell>
+                      {plan.country_iso3 ? (
+                        <>
+                          {plan.country_iso3.toUpperCase()}{' '}
+                          <span className="text-muted-foreground font-normal">
+                            ({countryNameMap.get(plan.country_iso3.toUpperCase()) || countryDisplayName(plan.country_iso3)})
+                          </span>
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
                     <TableCell>{plan.operator_name || '—'}</TableCell>
                     <TableCell className="capitalize">{plan.category || '—'}</TableCell>
                     <TableCell>
@@ -358,27 +519,152 @@ export default function AdminProductsPage() {
                         {plan.active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end items-center">
+                        {togglingId === plan.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : (
+                          <Switch
+                            checked={plan.active}
+                            onCheckedChange={() => void togglePlanStatus(plan.id, plan.active)}
+                          />
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
 
-          {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between">
-              <Button variant="outline" disabled={page === 1 || loading} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </span>
-              <Button variant="outline" disabled={page >= totalPages || loading} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-                Next
-              </Button>
+          {plans.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border/40 mt-4">
+              {/* Info text */}
+              <div className="text-xs text-muted-foreground font-medium">
+                Showing {Math.min((page - 1) * pageSize + 1, plans.length)} to{' '}
+                {Math.min(page * pageSize, plans.length)} of {plans.length} products
+              </div>
+
+              {/* Navigation buttons & Rows selector */}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Page Navigation */}
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold"
+                    onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                    disabled={page === 1 || loading}
+                  >
+                    Previous
+                  </Button>
+
+                  {/* Page indicator */}
+                  <span className="text-xs font-semibold px-2">
+                    Page {page} of {totalPages}
+                  </span>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold"
+                    onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={page === totalPages || loading}
+                  >
+                    Next
+                  </Button>
+                </div>
+
+                {/* Rows per page selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Rows per page:</span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(val) => {
+                      setPageSize(Number(val))
+                      setPage(1)
+                    }}
+                    disabled={loading}
+                  >
+                    <SelectTrigger className="h-8 w-[70px] bg-background border-border/80 text-xs font-semibold">
+                      <SelectValue placeholder={String(pageSize)} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Plan Merge Confirmation Dialog */}
+      <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <GitMerge className="size-5 text-primary animate-pulse" />
+              Merge Selected Plans
+            </DialogTitle>
+            <DialogDescription>
+              Consolidate duplicate plans into a single target plan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold">Selected Plans to Merge</Label>
+              <div className="max-h-[150px] overflow-y-auto border rounded-md p-2 space-y-1 bg-muted/20">
+                {selectedPlans.map((p) => (
+                  <div key={p.id} className="flex justify-between items-center text-xs px-2 py-1 bg-background border rounded-sm">
+                    <span className="font-semibold truncate max-w-[200px]">{p.plan_name}</span>
+                    <Badge variant="outline" className="scale-90">
+                      {p.operator_name || '—'} ({p.country_iso3?.toUpperCase()})
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="target-plan" className="text-sm font-semibold">Primary Target Plan</Label>
+              <Select value={targetPlanId} onValueChange={setTargetPlanId}>
+                <SelectTrigger id="target-plan" className="w-full bg-background border-border/80">
+                  <SelectValue placeholder="Select primary target plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectedPlans.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.plan_name} ({p.operator_name})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-muted-foreground">
+                All selected plans will be merged into this target plan, and the others will be deleted.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergeDialogOpen(false)} disabled={merging}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleMerge()} disabled={merging || !targetPlanId}>
+              {merging ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Merging...
+                </>
+              ) : (
+                'Merge'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
