@@ -317,3 +317,82 @@ export async function listRoutingLogs(filters: {
 
   return { logs, total: totalCount > 0 ? totalCount : logs.length }
 }
+
+export async function getMappingCount(internalPlanId: string): Promise<number> {
+  const res = await supabaseRest(
+    `internal_plan_provider_mapping?internal_plan_id=eq.${enc(internalPlanId)}&select=id`,
+    { cache: 'no-store', headers: { Prefer: 'count=exact' } }
+  )
+  if (!res.ok) return 0
+  const rangeHeader = res.headers.get('content-range')
+  if (rangeHeader) {
+    const match = rangeHeader.match(/\/(\d+)$/)
+    if (match) return Number(match[1])
+  }
+  try {
+    const rows = await res.json() as any[]
+    return rows.length
+  } catch {
+    return 0
+  }
+}
+
+export async function insertDetailedRoutingLog(input: {
+  transactionId: string
+  countryCode: string
+  operatorCode: string
+  planId: string
+  routingStrategy: string
+  routingRuleMatched: 'Yes' | 'No'
+  routingRuleId?: string | null
+  routingRuleProvider?: string | null
+  selectedProvider?: string | null
+  attemptNumber?: number
+  providerCost?: number
+  providerPriority?: number
+  executionResult: string
+  failureReason?: string | null
+  responseCode?: string | null
+  responseMessage?: string | null
+  verificationMappingCount?: number | null
+}): Promise<string | null> {
+  const details = {
+    routingStrategy: input.routingStrategy,
+    routingRuleMatched: input.routingRuleMatched,
+    routingRuleId: input.routingRuleId ?? null,
+    routingRuleProvider: input.routingRuleProvider ?? null,
+    attemptNumber: input.attemptNumber ?? null,
+    providerPriority: input.providerPriority ?? null,
+    failureReason: input.failureReason ?? null,
+    responseCode: input.responseCode ?? null,
+    responseMessage: input.responseMessage ?? null,
+    verificationMappingCount: input.verificationMappingCount ?? null,
+  }
+
+  const res = await supabaseRest('routing_logs', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      transaction_id: input.transactionId,
+      country_id: input.countryCode,
+      operator_id: input.operatorCode,
+      product_id: input.planId,
+      provider_id: input.selectedProvider || null,
+      routing_type: input.routingRuleMatched === 'Yes' ? 'RULE' : 'LCR',
+      provider_cost: input.providerCost ?? null,
+      fallback_used: (input.attemptNumber ?? 1) > 1,
+      status: JSON.stringify({
+        event: input.executionResult,
+        ...details
+      })
+    })
+  })
+
+  if (!res.ok) return null
+  try {
+    const rows = (await res.json()) as Array<{ id?: string }>
+    return rows[0]?.id ?? null
+  } catch {
+    return null
+  }
+}

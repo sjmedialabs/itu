@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { RefreshCcw, Search, Loader2, GitMerge, Play, CheckCircle2, XCircle, AlertCircle, GitFork } from 'lucide-react'
+import { RefreshCcw, Search, Loader2, GitMerge, Play, CheckCircle2, XCircle, AlertCircle, GitFork, Check, ChevronsUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,6 +31,8 @@ import {
   Power,
   PowerOff
 } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 export function CompactDateTime({ value }: { value: unknown }) {
   const d = new Date(String(value ?? ''))
@@ -90,6 +92,87 @@ export function ConfidenceBadge({ value }: { value: unknown }) {
     <Badge variant="outline" className={`whitespace-nowrap ${variantClass}`}>
       {displayLabel}
     </Badge>
+  )
+}
+
+/* Searchable combo-filter: type to search + pick from dropdown */
+function ComboFilter({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  allLabel = 'All',
+}: {
+  value: string
+  onValueChange: (v: string) => void
+  options: { value: string; label: string }[]
+  placeholder: string
+  allLabel?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return options
+    const q = search.toLowerCase()
+    return options.filter(
+      (o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q),
+    )
+  }, [options, search])
+
+  const displayLabel = value === 'ALL' || value === 'all' ? allLabel : (options.find((o) => o.value === value)?.label ?? value)
+
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (v) setTimeout(() => inputRef.current?.focus(), 50) }}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background hover:bg-accent hover:text-accent-foreground border-border/80',
+            !value || value === 'ALL' || value === 'all' ? 'text-muted-foreground' : '',
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-0" align="start">
+        <div className="border-b px-3 py-2">
+          <Input
+            ref={inputRef}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={`Search ${placeholder.toLowerCase()}…`}
+            className="h-8 border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+          />
+        </div>
+        <div className="max-h-[220px] overflow-y-auto p-1">
+          <button
+            type="button"
+            className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent text-left', (value === 'ALL' || value === 'all') && 'font-semibold')}
+            onClick={() => { onValueChange('ALL'); setOpen(false); setSearch('') }}
+          >
+            {value === 'ALL' || value === 'all' ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+            {allLabel}
+          </button>
+          {filtered.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={cn('flex w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent text-left', value === opt.value && 'font-semibold')}
+              onClick={() => { onValueChange(opt.value); setOpen(false); setSearch('') }}
+            >
+              {value === opt.value ? <Check className="h-4 w-4" /> : <span className="w-4" />}
+              {opt.label}
+            </button>
+          ))}
+          {filtered.length === 0 ? (
+            <p className="px-2 py-3 text-center text-sm text-muted-foreground">No results</p>
+          ) : null}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -725,19 +808,16 @@ export default function OperatorsPage() {
 
             {/* Country Filter */}
             <div className="flex flex-col gap-1">
-              <Select value={countryFilter} onValueChange={setCountryFilter}>
-                <SelectTrigger className="w-[180px] bg-background border-border/80 w-full">
-                  <SelectValue placeholder="Country" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Countries</SelectItem>
-                  {countriesList.map((c) => (
-                    <SelectItem key={c.iso3} value={c.iso3.toUpperCase()}>
-                      {c.name} ({c.iso3})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ComboFilter
+                value={countryFilter}
+                onValueChange={setCountryFilter}
+                placeholder="Country"
+                allLabel="All Countries"
+                options={countriesList.map((c) => ({
+                  value: c.iso3 ? c.iso3.toUpperCase() : c.code ? c.code.toUpperCase() : '',
+                  label: `${c.flag || '🌍'} ${c.name} (${c.iso3 ? c.iso3.toUpperCase() : c.code ? c.code.toUpperCase() : ''})`,
+                }))}
+              />
             </div>
           </div>
           {/* Counts info / Merge Operators action */}

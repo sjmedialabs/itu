@@ -66,7 +66,6 @@ type RuleForm = {
   /** Multi-select: array of ISO3 codes. Empty = no country filter yet */
   countryIds: string[]
   operatorId: string
-  productType: string
   providerId: string
   priority: number
 }
@@ -80,7 +79,6 @@ function makeEmptyForm(rules: Rule[]): RuleForm {
     ruleName: '',
     countryIds: [],
     operatorId: ROUTING_ANY,
-    productType: ROUTING_ANY,
     providerId: '',
     priority: next,
   }
@@ -96,17 +94,19 @@ function displayWildcard(value: string | null, label = 'Any') {
   return value?.trim() ? value : label
 }
 
-function isConcrete(value: string) {
+function isConcrete(value: string | null | undefined) {
+  if (typeof value !== 'string') return false
   return value.trim() !== '' && value !== ROUTING_ANY
 }
 
-async function fetchCascade(path: string) {
-  const res = await fetch(`/api/admin/routing-rules/options${path}`, {
+// Fetch operators directly via standard api
+async function fetchOperators(countryIso3: string) {
+  const res = await fetch(`/api/admin/routing-rules/options?country=${encodeURIComponent(countryIso3)}`, {
     credentials: 'include',
     cache: 'no-store',
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error ?? 'Failed to load options')
+  if (!res.ok) throw new Error(data.error ?? 'Failed to load operators')
   return data
 }
 
@@ -116,8 +116,7 @@ export default function RoutingRulesPage() {
   const [rules, setRules] = useState<Rule[]>([])
   const [countries, setCountries] = useState<CountryOption[]>([])
   const [cascadeOperators, setCascadeOperators] = useState<OperatorOption[]>([])
-  const [cascadeProductTypes, setCascadeProductTypes] = useState<ProductTypeOption[]>([])
-  const [cascadeProviders, setCascadeProviders] = useState<CascadeProvider[]>([])
+  const [providers, setProviders] = useState<CascadeProvider[]>([])
   const [operatorLabelCache, setOperatorLabelCache] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [cascadeLoading, setCascadeLoading] = useState(false)
@@ -140,15 +139,26 @@ export default function RoutingRulesPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [rulesRes, optionsRes] = await Promise.all([
+      const [rulesRes, countriesRes, providersRes] = await Promise.all([
         fetch('/api/admin/routing-rules', { credentials: 'include', cache: 'no-store' }),
-        fetch('/api/admin/routing-rules/options', { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/countries', { cache: 'no-store' }),
+        fetch('/api/admin/lcr/providers', { credentials: 'include', cache: 'no-store' })
       ])
       const rulesData = await rulesRes.json().catch(() => ({}))
-      const optionsData = await optionsRes.json().catch(() => ({}))
+      const countriesData = await countriesRes.json().catch(() => ({}))
+      const providersData = await providersRes.json().catch(() => ({}))
       if (!rulesRes.ok) throw new Error(rulesData.error ?? 'Failed to load rules')
       setRules(Array.isArray(rulesData.rules) ? rulesData.rules : [])
-      setCountries(Array.isArray(optionsData.countries) ? optionsData.countries : [])
+      
+      const mappedCountries = Array.isArray(countriesData.countries) 
+        ? countriesData.countries.map((c: any) => ({ iso3: c.iso3, label: c.name }))
+        : [];
+      setCountries(mappedCountries);
+
+      const mappedProviders = Array.isArray(providersData.providers)
+        ? providersData.providers.filter((p: any) => p.is_active).map((p: any) => ({ id: p.id, code: p.code, name: p.name, label: p.name }))
+        : [];
+      setProviders(mappedProviders);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Load failed')
       setRules([])
@@ -173,38 +183,14 @@ export default function RoutingRulesPage() {
   /** Fetch operators for a single country (raw, no state mutation) */
   const fetchOperatorsForCountry = useCallback(async (countryIso3: string): Promise<OperatorOption[]> => {
     try {
-      const data = await fetchCascade(`?country=${encodeURIComponent(countryIso3)}`)
+      const data = await fetchOperators(countryIso3)
       return Array.isArray(data.operators) ? (data.operators as OperatorOption[]) : []
     } catch {
       return []
     }
   }, [])
 
-  const loadProductTypesAndProviders = useCallback(
-    async (countryIso3: string, operatorId: string, productType?: string) => {
-      setCascadeLoading(true)
-      try {
-        const base = `?country=${encodeURIComponent(countryIso3)}&operatorId=${encodeURIComponent(operatorId)}`
-        const path = productType && isConcrete(productType) ? `${base}&productType=${encodeURIComponent(productType)}` : base
-        const data = await fetchCascade(path)
-        if (!productType || !isConcrete(productType)) {
-          setCascadeProductTypes(
-            Array.isArray(data.productTypes) ? (data.productTypes as ProductTypeOption[]) : [],
-          )
-        }
-        setCascadeProviders(Array.isArray(data.providers) ? (data.providers as CascadeProvider[]) : [])
-        return data
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to load catalog options')
-        setCascadeProductTypes([])
-        setCascadeProviders([])
-        return null
-      } finally {
-        setCascadeLoading(false)
-      }
-    },
-    [],
-  )
+
 
   /** Load common operators for multiple countries and set cascade state */
   const loadCommonOperators = useCallback(
@@ -246,41 +232,10 @@ export default function RoutingRulesPage() {
     [fetchOperatorsForCountry, cacheOperatorLabels],
   )
 
-  const hydrateCascade = useCallback(
-    async (countryIds: string[], operatorId: string, productType: string) => {
-      setCascadeOperators([])
-      setCascadeProductTypes([])
-      setCascadeProviders([])
-      setNoCommonOperator(false)
-      if (countryIds.length === 0) return
 
-      const operators = await loadCommonOperators(countryIds)
-      if (!isConcrete(operatorId)) return
-      if (!operators.some((o) => o.id === operatorId)) return
-
-      // Use first country for product types / providers (same logic as before)
-      await loadProductTypesAndProviders(countryIds[0], operatorId)
-      if (isConcrete(productType)) {
-        await loadProductTypesAndProviders(countryIds[0], operatorId, productType)
-      }
-    },
-    [loadCommonOperators, loadProductTypesAndProviders],
-  )
-
-  const productTypeOptions = useMemo(() => {
-    const items: SelectOption[] = [{ value: ROUTING_ANY, label: 'Any product type' }]
-    for (const p of cascadeProductTypes) {
-      if (!items.some((i) => i.value === p.value)) items.push(p)
-    }
-    if (isConcrete(form.productType) && !items.some((i) => i.value === form.productType)) {
-      items.push({ value: form.productType, label: form.productType })
-    }
-    return items
-  }, [cascadeProductTypes, form.productType])
 
   const countrySelected = form.countryIds.length > 0
   const operatorSelected = isConcrete(form.operatorId)
-  const productTypeSelected = isConcrete(form.productType)
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -312,8 +267,6 @@ export default function RoutingRulesPage() {
 
   function resetCascade() {
     setCascadeOperators([])
-    setCascadeProductTypes([])
-    setCascadeProviders([])
     setNoCommonOperator(false)
   }
 
@@ -329,19 +282,19 @@ export default function RoutingRulesPage() {
     setEditing(rule)
     const countryIds = parseCountryIds(rule.countryId)
     const operatorId = fromNullableRuleField(rule.operatorId)
-    const productType = fromNullableRuleField(rule.productType)
     setForm({
       ruleName: rule.ruleName,
       countryIds,
       operatorId,
-      productType,
       providerId: rule.providerId,
       priority: rule.priority,
     })
     resetCascade()
     setCountrySearch('')
     setDialogOpen(true)
-    void hydrateCascade(countryIds, operatorId, productType)
+    if (countryIds.length > 0) {
+      void loadCommonOperators(countryIds)
+    }
   }
 
   /** Priority slots available for the current rule in the dialog */
@@ -366,7 +319,7 @@ export default function RoutingRulesPage() {
     const next = current.includes(iso3)
       ? current.filter((c) => c !== iso3)
       : [...current, iso3]
-    setForm((f) => ({ ...f, countryIds: next, operatorId: ROUTING_ANY, productType: ROUTING_ANY, providerId: '' }))
+    setForm((f) => ({ ...f, countryIds: next, operatorId: ROUTING_ANY, providerId: '' }))
     resetCascade()
     if (next.length > 0) await loadCommonOperators(next)
   }
@@ -375,7 +328,7 @@ export default function RoutingRulesPage() {
   async function toggleAllCountries() {
     const allSelected = form.countryIds.length === countries.length
     const next = allSelected ? [] : countries.map((c) => c.iso3)
-    setForm((f) => ({ ...f, countryIds: next, operatorId: ROUTING_ANY, productType: ROUTING_ANY, providerId: '' }))
+    setForm((f) => ({ ...f, countryIds: next, operatorId: ROUTING_ANY, providerId: '' }))
     resetCascade()
     if (next.length > 0) await loadCommonOperators(next)
   }
@@ -384,28 +337,8 @@ export default function RoutingRulesPage() {
     setForm((f) => ({
       ...f,
       operatorId,
-      productType: ROUTING_ANY,
       providerId: '',
     }))
-    setCascadeProductTypes([])
-    setCascadeProviders([])
-    if (form.countryIds.length === 0 || !isConcrete(operatorId)) return
-    await loadProductTypesAndProviders(form.countryIds[0], operatorId)
-  }
-
-  async function onProductTypeChange(productType: string) {
-    setForm((f) => ({
-      ...f,
-      productType,
-      providerId: '',
-    }))
-    setCascadeProviders([])
-    if (form.countryIds.length === 0 || !isConcrete(form.operatorId)) return
-    if (!isConcrete(productType)) {
-      await loadProductTypesAndProviders(form.countryIds[0], form.operatorId)
-      return
-    }
-    await loadProductTypesAndProviders(form.countryIds[0], form.operatorId, productType)
   }
 
   async function saveRule() {
@@ -425,10 +358,6 @@ export default function RoutingRulesPage() {
       toast.error('Provider is required')
       return
     }
-    if (!isConcrete(form.operatorId) || !isConcrete(form.productType)) {
-      toast.error('Select operator and product type to choose a provider')
-      return
-    }
     setSaving(true)
     try {
       // Join multiple countries as comma-separated uppercase ISO3 codes
@@ -440,7 +369,7 @@ export default function RoutingRulesPage() {
         ruleName: form.ruleName.trim(),
         countryId,
         operatorId: toNullableRuleField(form.operatorId) ?? null,
-        productType: toNullableRuleField(form.productType)?.toLowerCase() ?? null,
+        productType: null,
         providerId: form.providerId,
         priority: form.priority,
         status: editing?.status ?? 'ACTIVE',
@@ -510,12 +439,6 @@ export default function RoutingRulesPage() {
   function operatorLabel(operatorId: string | null) {
     if (!operatorId) return 'Any'
     return operatorLabelCache[operatorId] ?? operatorId.slice(0, 12)
-  }
-
-  function productTypeLabel(value: string | null) {
-    if (!value) return 'Any'
-    const key = value.toLowerCase()
-    return ROUTING_CATEGORY_LABELS[key] ?? key
   }
 
   /** Resolve a country ISO3 to its display label */
@@ -615,7 +538,6 @@ export default function RoutingRulesPage() {
                 <TableHead className="w-[15%]">Rule</TableHead>
                 <TableHead className="w-[10%]">Country</TableHead>
                 <TableHead className="w-[10%]">Operator</TableHead>
-                <TableHead className="w-[10%]">Product</TableHead>
                 <TableHead className="w-[10%]">Provider</TableHead>
                 <TableHead className="w-[10%]">Priority</TableHead>
                 <TableHead className="w-[8%]">Enabled</TableHead>
@@ -643,7 +565,6 @@ export default function RoutingRulesPage() {
                       <CountryCell countryId={rule.countryId} />
                     </TableCell>
                     <TableCell>{operatorLabel(rule.operatorId)}</TableCell>
-                    <TableCell>{productTypeLabel(rule.productType)}</TableCell>
                     <TableCell>
                       {rule.providerName ?? rule.providerCode ?? rule.providerId.slice(0, 8)}
                     </TableCell>
@@ -704,7 +625,7 @@ export default function RoutingRulesPage() {
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit routing rule' : 'Create routing rule'}</DialogTitle>
             <DialogDescription>
-              Pick countries, then operator, then product type. Providers listed have catalog coverage for that combination.
+              Pick countries, then operator. Pick from any of the active providers.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
@@ -813,29 +734,6 @@ export default function RoutingRulesPage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {/* Product type */}
-              <div className="space-y-2">
-                <Label>Product type</Label>
-                <Select
-                  value={form.productType}
-                  disabled={!operatorSelected || cascadeLoading}
-                  onValueChange={(v) => void onProductTypeChange(v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={operatorSelected ? 'Select product type' : 'Select operator first'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productTypeOptions
-                      .filter((opt) => opt.value !== ROUTING_ANY)
-                      .map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               {/* Priority */}
               <div className="space-y-2">
                 <Label>Priority</Label>
@@ -856,39 +754,33 @@ export default function RoutingRulesPage() {
                 </Select>
                 <p className="text-[11px] text-muted-foreground">Lower number = higher priority</p>
               </div>
-            </div>
 
-            {/* Provider */}
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select
-                value={form.providerId}
-                disabled={!productTypeSelected || cascadeLoading || cascadeProviders.length === 0}
-                onValueChange={(v) => setForm((f) => ({ ...f, providerId: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      !productTypeSelected
-                        ? 'Select product type first'
-                        : cascadeProviders.length === 0
-                          ? 'No providers for this combination'
+              {/* Provider */}
+              <div className="space-y-2">
+                <Label>Provider</Label>
+                <Select
+                  value={form.providerId}
+                  disabled={providers.length === 0}
+                  onValueChange={(v) => setForm((f) => ({ ...f, providerId: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        providers.length === 0
+                          ? 'No providers found'
                           : 'Select provider'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {cascadeProviders.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                  {form.providerId &&
-                    !cascadeProviders.some((p) => p.id === form.providerId) && (
-                      <SelectItem value={form.providerId}>Current selection</SelectItem>
-                    )}
-                </SelectContent>
-              </Select>
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>

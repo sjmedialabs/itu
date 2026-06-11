@@ -5,7 +5,10 @@ import {
   isRoutingEngineSchemaReady,
   listActiveRoutingRules,
   listProviderPriorities,
+  getMappingCount,
+  insertDetailedRoutingLog,
 } from '@/lib/routing/repository'
+import { dbGetInternalPlan } from '@/lib/lcr-v2/recharge-db'
 import type {
   LcrEngineSettings,
   RoutingProviderCandidate,
@@ -18,6 +21,78 @@ function enc(v: string): string {
   return encodeURIComponent(v)
 }
 
+export async function normalizeCountryToIso3(countryId: string): Promise<string> {
+  const code = (countryId || '').trim().toUpperCase()
+  if (code.length === 2) {
+    try {
+      const res = await supabaseRest(
+        `countries?iso2=eq.${encodeURIComponent(code)}&select=id`,
+        { cache: 'no-store' }
+      )
+      if (res.ok) {
+        const rows = await res.json() as Array<{ id: string }>
+        if (rows?.[0]?.id) {
+          return rows[0].id.toUpperCase()
+        }
+      }
+    } catch {
+      // fallback
+    }
+  }
+  return code
+}
+
+export type SystemOperatorInfo = {
+  id: string
+  name: string
+}
+
+export async function resolveSystemOperator(
+  operatorIdOrName: string,
+  countryIso3: string
+): Promise<SystemOperatorInfo> {
+  const op = (operatorIdOrName || '').trim()
+  if (!op || op.toLowerCase() === 'unknown') {
+    return { id: op, name: op || 'Unknown' }
+  }
+
+  let lookupId = op
+  if (op.startsWith('system:')) {
+    lookupId = op.slice(7)
+  }
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lookupId)
+
+  try {
+    let query = ''
+    if (isUuid) {
+      query = `system_operators?id=eq.${encodeURIComponent(lookupId)}&limit=1`
+    } else {
+      query = `system_operators?country_id=eq.${encodeURIComponent(countryIso3)}&or=(system_operator_name.ilike.${encodeURIComponent(op)},slug.eq.${encodeURIComponent(op.toLowerCase())})&limit=1`
+    }
+
+    const res = await supabaseRest(query, { cache: 'no-store' })
+    if (res.ok) {
+      const rows = await res.json() as Array<{ id: string; system_operator_name: string }>
+      if (rows?.[0]) {
+        return {
+          id: `system:${rows[0].id}`,
+          name: rows[0].system_operator_name,
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return { id: op, name: op }
+}
+
+export async function normalizeOperatorId(operatorId: string, countryIso3: string): Promise<string> {
+  const info = await resolveSystemOperator(operatorId, countryIso3)
+  return info.id
+}
+
 function weightedScore(input: { price: number; providerPriority: number; margin?: number }) {
   const marginBonus = (input.margin ?? 0) * -0.01
   return input.price + input.providerPriority * 0.002 + marginBonus
@@ -28,7 +103,7 @@ function ruleMatches(rule: RoutingRuleRow, ctx: RoutingResolveInput): boolean {
   const operator = (ctx.operatorId ?? '').toLowerCase()
   const productType = (ctx.productType ?? ctx.service ?? '').toLowerCase()
 
-  if (rule.countryId && rule.countryId.toUpperCase() !== country) return false
+  if (rule.countryId && rule.countryId !== '*' && rule.countryId.toUpperCase() !== country) return false
   if (rule.operatorId && rule.operatorId.toLowerCase() !== operator) return false
   if (rule.productType && rule.productType.toLowerCase() !== productType) return false
   return true
@@ -46,98 +121,146 @@ type MappingRow = {
   provider_currency: string | null
   provider_priority: number | null
   margin: number | null
+  enabled?: boolean
 }
 
 async function loadCandidates(productId: string): Promise<{
   mappings: MappingRow[]
   providers: Map<string, Record<string, unknown>>
+  allProvidersList: Record<string, unknown>[]
 }> {
   const mapRes = await supabaseRest(
-    `internal_plan_provider_mapping?internal_plan_id=eq.${enc(productId)}&enabled=eq.true&select=provider_id,provider_plan_id,provider_price,provider_currency,provider_priority,margin`,
+    `internal_plan_provider_mapping?internal_plan_id=eq.${enc(productId)}&select=provider_id,provider_plan_id,provider_price,provider_currency,provider_priority,margin,enabled`,
     { cache: 'no-store' },
   )
   if (!mapRes.ok) throw new Error(await mapRes.text())
   const mappings = (await mapRes.json()) as MappingRow[]
 
-  const providerIds = mappings.map((m) => m.provider_id)
-  const providersRes = providerIds.length
-    ? await supabaseRest(
-        `lcr_providers?id=in.(${providerIds.map(enc).join(',')})&select=id,code,name,is_active,priority,status,supported_countries`,
-        { cache: 'no-store' },
-      )
-    : null
+  const providersRes = await supabaseRest(
+    `lcr_providers?select=id,code,name,is_active,priority,status,supported_countries`,
+    { cache: 'no-store' },
+  )
   const providerRows =
     providersRes && providersRes.ok ? ((await providersRes.json()) as Record<string, unknown>[]) : []
   const providers = new Map<string, Record<string, unknown>>(providerRows.map((p) => [String(p.id), p]))
-  return { mappings, providers }
+  return { mappings, providers, allProvidersList: providerRows }
 }
 
 function evaluateCandidates(
   mappings: MappingRow[],
   providers: Map<string, Record<string, unknown>>,
+  allProvidersList: Record<string, unknown>[],
   ctx: RoutingResolveInput,
   priorityMap: Map<string, number>,
 ): RoutingProviderCandidate[] {
   const country = (ctx.countryId ?? '').toUpperCase()
-  return mappings.map((m) => {
-    const prov = providers.get(m.provider_id)
-    if (!prov || !prov.is_active || prov.status === 'offline') {
+
+  return allProvidersList.map((prov) => {
+    const providerId = String(prov.id)
+    const providerName = String(prov.name ?? prov.code ?? providerId)
+    const providerCode = prov.code != null ? String(prov.code) : undefined
+    const activeStatus = Boolean(prov.is_active)
+    const onlineStatus = String(prov.status ?? 'unknown')
+    const priority = priorityMap.get(providerId) ?? (typeof prov.priority === 'number' ? prov.priority : 100)
+
+    const mapping = mappings.find((m) => m.provider_id === providerId)
+    const mappingExists = !!mapping
+
+    if (!mappingExists) {
       return {
-        providerId: m.provider_id,
-        providerPlanId: m.provider_plan_id,
+        providerId,
+        providerName,
+        providerCode,
+        activeStatus,
+        onlineStatus,
+        mappingExists,
         price: Infinity,
-        providerPriority: 100,
+        margin: 0,
+        providerPriority: priority,
         eligible: false,
-        reason: 'PROVIDER_INACTIVE',
+        filterReason: 'PLAN_MAPPING_MISSING',
+        reason: 'PLAN_MAPPING_MISSING',
       }
+    }
+
+    const providerPlanId = mapping.provider_plan_id
+    const price = typeof mapping.provider_price === 'number' ? mapping.provider_price : Infinity
+    const margin = typeof mapping.margin === 'number' ? mapping.margin : 0
+    const currency = mapping.provider_currency ?? undefined
+
+    if (mapping.enabled === false) {
+      return {
+        providerId,
+        providerName,
+        providerPlanId,
+        providerCode,
+        activeStatus,
+        onlineStatus,
+        mappingExists,
+        price,
+        margin,
+        providerPriority: priority,
+        eligible: false,
+        filterReason: 'PROVIDER_DISABLED',
+        reason: 'PROVIDER_DISABLED',
+      }
+    }
+
+    if (!activeStatus) {
+      return {
+        providerId,
+        providerName,
+        providerPlanId,
+        providerCode,
+        activeStatus,
+        onlineStatus,
+        mappingExists,
+        price,
+        margin,
+        providerPriority: priority,
+        eligible: false,
+        filterReason: 'PROVIDER_DISABLED',
+        reason: 'PROVIDER_DISABLED',
+      }
+    }
+
+    let filterReason = 'ELIGIBLE'
+    let eligible = true
+
+    if (onlineStatus === 'offline') {
+      filterReason = 'PROVIDER_OFFLINE'
+      eligible = false
     }
 
     const supported = (prov.supported_countries as string[] | undefined) ?? []
-    if (supported.length && country && !supported.some((c) => c.toUpperCase() === country)) {
-      return {
-        providerId: m.provider_id,
-        providerPlanId: m.provider_plan_id,
-        price: Infinity,
-        providerPriority: 100,
-        eligible: false,
-        reason: 'COUNTRY_NOT_SUPPORTED',
-      }
+    if (eligible && supported.length && country && !supported.some((c) => c.toUpperCase() === country)) {
+      filterReason = 'COUNTRY_NOT_SUPPORTED'
+      eligible = false
     }
 
-    const price = typeof m.provider_price === 'number' ? m.provider_price : Infinity
-    if (!Number.isFinite(price) || price <= 0) {
-      return {
-        providerId: m.provider_id,
-        providerPlanId: m.provider_plan_id,
-        price: Infinity,
-        providerPriority: 100,
-        eligible: false,
-        reason: 'NO_PRICE',
-      }
+    if (eligible && (!Number.isFinite(price) || price <= 0)) {
+      filterReason = 'PRICE_MISSING'
+      eligible = false
     }
 
-    const providerPriority =
-      priorityMap.get(m.provider_id) ??
-      (typeof m.provider_priority === 'number'
-        ? m.provider_priority
-        : typeof prov.priority === 'number'
-          ? Number(prov.priority)
-          : 100)
-
-    const margin = typeof m.margin === 'number' ? m.margin : 0
-    const score = weightedScore({ price, providerPriority, margin })
+    const score = eligible ? weightedScore({ price, providerPriority: priority, margin }) : Infinity
 
     return {
-      providerId: m.provider_id,
-      providerPlanId: m.provider_plan_id,
-      providerCode: prov.code != null ? String(prov.code) : undefined,
-      providerName: prov.name != null ? String(prov.name) : undefined,
+      providerId,
+      providerName,
+      providerPlanId,
+      providerCode,
+      activeStatus,
+      onlineStatus,
+      mappingExists,
       price,
-      currency: m.provider_currency ?? undefined,
       margin,
-      providerPriority,
+      providerPriority: priority,
+      eligible,
+      filterReason,
+      reason: filterReason,
       score,
-      eligible: true,
+      currency,
     }
   })
 }
@@ -146,13 +269,14 @@ function sortByStrategy(
   eligible: RoutingProviderCandidate[],
   settings: LcrEngineSettings,
 ): RoutingProviderCandidate[] {
-  if (settings.routingStrategy === 'PRIORITY') {
+  const strategy = settings.routingStrategy ?? 'LEAST_COST'
+  if (strategy === 'PRIORITY') {
     return [...eligible].sort((a, b) => {
       if (a.providerPriority !== b.providerPriority) return a.providerPriority - b.providerPriority
       return (a.price ?? 0) - (b.price ?? 0)
     })
   }
-  if (settings.routingStrategy === 'HIGHEST_MARGIN') {
+  if (strategy === 'HIGHEST_MARGIN') {
     return [...eligible].sort((a, b) => {
       const ma = a.margin ?? 0
       const mb = b.margin ?? 0
@@ -160,7 +284,7 @@ function sortByStrategy(
       return (a.price ?? 0) - (b.price ?? 0)
     })
   }
-  return [...eligible].sort((a, b) => (a.score ?? a.price) - (b.score ?? b.price))
+  return [...eligible].sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
 }
 
 function buildFallbackChain(
@@ -177,6 +301,12 @@ function buildFallbackChain(
 
 export class RoutingEngineService {
   async resolveProvider(input: RoutingResolveInput): Promise<RoutingResolveResult> {
+    const countryId = await normalizeCountryToIso3(input.countryId)
+    const operatorId = await normalizeOperatorId(input.operatorId, countryId)
+    const normalizedInput = { ...input, countryId, operatorId }
+
+    console.log(`[ROUTING] Starting routing for internal_plan_id: ${normalizedInput.productId}`)
+
     const schemaReady = await isRoutingEngineSchemaReady()
     const settings = schemaReady ? await getLcrEngineSettings() : null
     const effectiveSettings: LcrEngineSettings = settings ?? {
@@ -189,22 +319,103 @@ export class RoutingEngineService {
       retryAttempts: 2,
     }
 
-    const { mappings, providers } = await loadCandidates(input.productId)
+    // 1. Verify that internal_plan_id exists in internal_plans table
+    const planExists = normalizedInput.productId ? await dbGetInternalPlan(normalizedInput.productId) : null
+    if (!planExists) {
+      console.log(`[ROUTING] INTERNAL_PLAN_NOT_FOUND: Plan ID ${normalizedInput.productId} does not exist`)
+      const logId = schemaReady
+        ? await insertDetailedRoutingLog({
+            transactionId: normalizedInput.transactionId ?? '',
+            countryCode: normalizedInput.countryId ?? '',
+            operatorCode: normalizedInput.operatorId ?? '',
+            planId: normalizedInput.productId,
+            routingStrategy: effectiveSettings.routingStrategy,
+            routingRuleMatched: 'No',
+            executionResult: 'INTERNAL_PLAN_NOT_FOUND',
+            verificationMappingCount: 0,
+          })
+        : null
+
+      return {
+        routingType: 'LCR',
+        selected: null,
+        fallbacks: [],
+        evaluated: [],
+        ruleApplied: 'NONE',
+        settings: effectiveSettings,
+        logId: logId ?? undefined,
+        routing_decision_reason: 'INTERNAL_PLAN_NOT_FOUND',
+        internal_plan_id: normalizedInput.productId,
+        mapping_count: 0,
+        candidate_provider_count: 0,
+        eligible_provider_count: 0,
+      }
+    }
+
+    // 2. Load mappings and providers
+    const { mappings, providers, allProvidersList } = await loadCandidates(normalizedInput.productId)
+    const mapping_count = mappings.length
+    console.log(`[ROUTING] internal_plan_id: ${normalizedInput.productId} | mapping_count: ${mapping_count}`)
+
+    // If mapping_count = 0
+    if (mapping_count === 0) {
+      console.log(`[ROUTING] MISSING_PROVIDER_MAPPING: No mappings found for plan ID ${normalizedInput.productId}`)
+      const logId = schemaReady
+        ? await insertDetailedRoutingLog({
+            transactionId: normalizedInput.transactionId ?? '',
+            countryCode: normalizedInput.countryId ?? '',
+            operatorCode: normalizedInput.operatorId ?? '',
+            planId: normalizedInput.productId,
+            routingStrategy: effectiveSettings.routingStrategy,
+            routingRuleMatched: 'No',
+            executionResult: 'NO_PROVIDER_MAPPING',
+            verificationMappingCount: 0,
+          })
+        : null
+
+      return {
+        routingType: 'LCR',
+        selected: null,
+        fallbacks: [],
+        evaluated: [],
+        ruleApplied: 'NONE',
+        settings: effectiveSettings,
+        logId: logId ?? undefined,
+        routing_decision_reason: 'NO_PROVIDER_MAPPING',
+        internal_plan_id: normalizedInput.productId,
+        mapping_count: 0,
+        candidate_provider_count: 0,
+        eligible_provider_count: 0,
+      }
+    }
+
     const priorityRows = schemaReady ? await listProviderPriorities() : []
     const priorityMap = new Map(priorityRows.map((p) => [p.providerId, p.priority]))
 
-    const evaluated = evaluateCandidates(mappings, providers, input, priorityMap)
-    let eligible = evaluated.filter((e) => e.eligible)
+    // Evaluate candidates
+    const evaluated = evaluateCandidates(mappings, providers, allProvidersList, normalizedInput, priorityMap)
 
-    if (!eligible.length) {
+    // Candidate providers count (providers that have a mapping)
+    const candidate_provider_count = evaluated.filter((e) => e.mappingExists).length
+    // Eligible providers count
+    let eligible = evaluated.filter((e) => e.eligible)
+    const eligible_provider_count = eligible.length
+
+    console.log(`[ROUTING] candidate_provider_count: ${candidate_provider_count} | eligible_provider_count: ${eligible_provider_count}`)
+
+    // 3. Verify mapped providers exist
+    if (candidate_provider_count === 0) {
+      console.log(`[ROUTING] NO_CANDIDATE_PROVIDERS: Mapped providers do not exist in lcr_providers`)
       const logId = schemaReady
-        ? await insertRoutingLog({
-            transactionId: input.transactionId,
-            countryId: input.countryId,
-            operatorId: input.operatorId,
-            productId: input.productId,
-            routingType: 'LCR',
-            status: 'NO_PROVIDER',
+        ? await insertDetailedRoutingLog({
+            transactionId: normalizedInput.transactionId ?? '',
+            countryCode: normalizedInput.countryId ?? '',
+            operatorCode: normalizedInput.operatorId ?? '',
+            planId: normalizedInput.productId,
+            routingStrategy: effectiveSettings.routingStrategy,
+            routingRuleMatched: 'No',
+            executionResult: 'NO_CANDIDATE_PROVIDERS',
+            verificationMappingCount: mapping_count,
           })
         : null
 
@@ -216,27 +427,69 @@ export class RoutingEngineService {
         ruleApplied: 'NONE',
         settings: effectiveSettings,
         logId: logId ?? undefined,
+        routing_decision_reason: 'NO_CANDIDATE_PROVIDERS',
+        internal_plan_id: normalizedInput.productId,
+        mapping_count,
+        candidate_provider_count: 0,
+        eligible_provider_count: 0,
+      }
+    }
+
+    // 4. Verify at least one passes eligibility checks
+    if (eligible_provider_count === 0) {
+      console.log(`[ROUTING] NO_ELIGIBLE_PROVIDER: All candidates filtered out`)
+      const logId = schemaReady
+        ? await insertDetailedRoutingLog({
+            transactionId: normalizedInput.transactionId ?? '',
+            countryCode: normalizedInput.countryId ?? '',
+            operatorCode: normalizedInput.operatorId ?? '',
+            planId: normalizedInput.productId,
+            routingStrategy: effectiveSettings.routingStrategy,
+            routingRuleMatched: 'No',
+            executionResult: 'NO_ELIGIBLE_PROVIDER',
+            verificationMappingCount: mapping_count,
+          })
+        : null
+
+      return {
+        routingType: 'LCR',
+        selected: null,
+        fallbacks: [],
+        evaluated,
+        ruleApplied: 'NONE',
+        settings: effectiveSettings,
+        logId: logId ?? undefined,
+        routing_decision_reason: 'NO_ELIGIBLE_PROVIDER',
+        internal_plan_id: normalizedInput.productId,
+        mapping_count,
+        candidate_provider_count,
+        eligible_provider_count: 0,
       }
     }
 
     if (schemaReady && effectiveSettings.enabled) {
       const rules = await listActiveRoutingRules()
-      const rule = pickRoutingRule(rules, input)
+      const rule = pickRoutingRule(rules, normalizedInput)
       if (rule) {
         const forced = eligible.find((e) => e.providerId === rule.providerId)
         if (forced) {
           const fallbacks = effectiveSettings.autoFailover
             ? buildFallbackChain(eligible, forced, effectiveSettings)
             : []
-          const logId = await insertRoutingLog({
-            transactionId: input.transactionId,
-            countryId: input.countryId,
-            operatorId: input.operatorId,
-            productId: input.productId,
-            providerId: forced.providerId,
-            routingType: 'RULE',
+          const logId = await insertDetailedRoutingLog({
+            transactionId: normalizedInput.transactionId ?? '',
+            countryCode: normalizedInput.countryId ?? '',
+            operatorCode: normalizedInput.operatorId ?? '',
+            planId: normalizedInput.productId,
+            routingStrategy: effectiveSettings.routingStrategy,
+            routingRuleMatched: 'Yes',
+            routingRuleId: rule.id,
+            routingRuleProvider: forced.providerName || forced.providerId,
+            selectedProvider: forced.providerId,
             providerCost: forced.price,
-            status: 'SELECTED',
+            providerPriority: forced.providerPriority,
+            executionResult: 'RULE_MATCHED',
+            verificationMappingCount: mapping_count,
           })
           return {
             routingType: 'RULE',
@@ -248,6 +501,11 @@ export class RoutingEngineService {
             ruleApplied: 'RULE',
             settings: effectiveSettings,
             logId: logId ?? undefined,
+            routing_decision_reason: 'RULE_MATCHED',
+            internal_plan_id: normalizedInput.productId,
+            mapping_count,
+            candidate_provider_count,
+            eligible_provider_count,
           }
         }
       }
@@ -259,16 +517,26 @@ export class RoutingEngineService {
       ? buildFallbackChain(sorted, selected, effectiveSettings)
       : sorted.slice(1)
 
+    let decisionReason = 'LEAST_COST_SELECTED'
+    if (effectiveSettings.routingStrategy === 'HIGHEST_MARGIN') {
+      decisionReason = 'HIGHEST_MARGIN_SELECTED'
+    } else if (effectiveSettings.routingStrategy === 'PRIORITY') {
+      decisionReason = 'PRIORITY_SELECTED'
+    }
+
     const logId = schemaReady
-      ? await insertRoutingLog({
-          transactionId: input.transactionId,
-          countryId: input.countryId,
-          operatorId: input.operatorId,
-          productId: input.productId,
-          providerId: selected.providerId,
-          routingType: 'LCR',
+      ? await insertDetailedRoutingLog({
+          transactionId: normalizedInput.transactionId ?? '',
+          countryCode: normalizedInput.countryId ?? '',
+          operatorCode: normalizedInput.operatorId ?? '',
+          planId: normalizedInput.productId,
+          routingStrategy: effectiveSettings.routingStrategy,
+          routingRuleMatched: 'No',
+          selectedProvider: selected.providerId,
           providerCost: selected.price,
-          status: 'SELECTED',
+          providerPriority: selected.providerPriority,
+          executionResult: decisionReason,
+          verificationMappingCount: mapping_count,
         })
       : null
 
@@ -280,6 +548,11 @@ export class RoutingEngineService {
       ruleApplied: 'LCR',
       settings: effectiveSettings,
       logId: logId ?? undefined,
+      routing_decision_reason: decisionReason,
+      internal_plan_id: normalizedInput.productId,
+      mapping_count,
+      candidate_provider_count,
+      eligible_provider_count,
     }
   }
 }

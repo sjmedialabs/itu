@@ -9,6 +9,7 @@ import {
 import { rowToProviderConfig } from '@/lib/lcr-v2/provider-credentials'
 import { cacheDelByPrefix } from '@/lib/cache/redis'
 import type { AggregatorSyncResult } from '@/lib/aggregator/types'
+import { resolveSyncCountries, type SyncCatalogOptions } from '@/lib/lcr/sync-options'
 import { runStep1Check } from './stages/step1-check'
 import { runStep2Fetch } from './stages/step2-fetch'
 import { runStep3Countries } from './stages/step3-countries'
@@ -31,7 +32,8 @@ export type PipelineStage =
 export async function runPipelineStage(
   stageKey: string,
   providerId: string,
-  syncRunId?: string | null
+  syncRunId?: string | null,
+  options?: SyncCatalogOptions
 ): Promise<{ success: boolean; message: string; data?: any }> {
   const providerRow = await aggGetProvider(providerId)
   if (!providerRow) {
@@ -43,7 +45,7 @@ export async function runPipelineStage(
     case 'step1_check':
       return runStep1Check(providerId, config, syncRunId)
     case 'step2_fetch':
-      return runStep2Fetch(providerId, config, syncRunId)
+      return runStep2Fetch(providerId, config, syncRunId, options)
     case 'step3_countries':
       return runStep3Countries(providerId, config, syncRunId)
     case 'step4_normalize':
@@ -61,7 +63,7 @@ export async function runPipelineStage(
   }
 }
 
-export async function runFullSyncPipeline(providerId: string): Promise<AggregatorSyncResult> {
+export async function runFullSyncPipeline(providerId: string, options?: SyncCatalogOptions): Promise<AggregatorSyncResult> {
   const fullSyncStartedAt = new Date().toISOString()
 
   if (!(await isAggregatorSchemaReady())) {
@@ -110,7 +112,7 @@ export async function runFullSyncPipeline(providerId: string): Promise<Aggregato
     }).catch(() => {})
 
     try {
-      const result = await runPipelineStage(stageKey, providerId, syncRunId)
+      const result = await runPipelineStage(stageKey, providerId, syncRunId, options)
       if (!result.success) {
         throw new Error(result.message || `Stage ${stageKey} failed`)
       }
@@ -177,7 +179,7 @@ export async function runFullSyncPipeline(providerId: string): Promise<Aggregato
       duplicateSuggestions: step8Data.quarantined || 0,
       skippedOperators: step5Data.inactive || 0,
       durationMs,
-      syncedCountries: config.supportedCountries || [],
+      syncedCountries: resolveSyncCountries(config, options) || [],
     }
 
     if (syncRunId) {

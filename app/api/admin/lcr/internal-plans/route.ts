@@ -13,18 +13,23 @@ function enc(v: string): string {
   return encodeURIComponent(v)
 }
 
-async function loadSystemOperatorNames(ids: string[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>()
+async function loadSystemOperatorsInfo(ids: string[]): Promise<Map<string, { name: string; status: string }>> {
+  const map = new Map<string, { name: string; status: string }>()
   if (!ids.length) return map
   const unique = [...new Set(ids)]
   const res = await supabaseRest(
-    `system_operators?id=in.(${unique.map(enc).join(',')})&select=id,system_operator_name&limit=${unique.length}`,
+    `system_operators?id=in.(${unique.map(enc).join(',')})&select=id,system_operator_name,status&limit=${unique.length}`,
     { cache: 'no-store' },
   ).catch(() => null)
   if (!res?.ok) return map
-  const rows = (await res.json()) as { id: string; system_operator_name?: string }[]
+  const rows = (await res.json()) as { id: string; system_operator_name?: string; status?: string }[]
   for (const row of rows) {
-    if (row.id && row.system_operator_name) map.set(row.id, row.system_operator_name)
+    if (row.id) {
+      map.set(row.id, {
+        name: row.system_operator_name || '',
+        status: (row.status || 'ACTIVE').toUpperCase(),
+      })
+    }
   }
   return map
 }
@@ -62,17 +67,68 @@ export async function GET(request: Request) {
   const systemIds = rows
     .map((row) => (row.operator_ref?.startsWith('system:') ? row.operator_ref.slice('system:'.length) : ''))
     .filter(Boolean)
-  const systemOperatorNames = await loadSystemOperatorNames(systemIds)
+  const systemOperatorInfo = await loadSystemOperatorsInfo(systemIds)
 
-  let internalPlans = rows.map((row) => ({
-    id: row.id,
-    plan_name: displayPlanName(row),
-    country_iso3: row.country_iso3,
-    operator_name: operatorNameFromInternalPlan(row, systemOperatorNames),
-    operator_ref: row.operator_ref,
-    category: row.category,
-    active: row.active,
-  }))
+  const systemOperatorNames = new Map<string, string>()
+  for (const [key, value] of systemOperatorInfo.entries()) {
+    systemOperatorNames.set(key, value.name)
+  }
+
+  const internalPlansRaw = rows.map((row) => {
+    const opId = row.operator_ref?.startsWith('system:') ? row.operator_ref.slice('system:'.length) : ''
+    const opInfo = opId ? systemOperatorInfo.get(opId) : null
+    const opStatus = opInfo?.status || 'ACTIVE'
+
+    return {
+      row,
+      opId,
+      opStatus,
+    }
+  })
+
+  // Synchronize plan active status with operator active status
+  let internalPlans = await Promise.all(
+    internalPlansRaw.map(async ({ row, opId, opStatus }) => {
+      let active = row.active
+      if (opId) {
+        if (opStatus === 'INACTIVE' && row.active) {
+          active = false
+          // Update DB internal_plans
+          await supabaseRest(`internal_plans?id=eq.${encodeURIComponent(row.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ active: false }),
+          }).catch((err) => console.error('Failed sync internal_plans inactive status:', err))
+          // Update DB system_plans
+          await supabaseRest(`system_plans?internal_plan_id=eq.${encodeURIComponent(row.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'INACTIVE' }),
+          }).catch((err) => console.error('Failed sync system_plans inactive status:', err))
+        } else if (opStatus === 'ACTIVE' && !row.active) {
+          active = true
+          // Update DB internal_plans
+          await supabaseRest(`internal_plans?id=eq.${encodeURIComponent(row.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ active: true }),
+          }).catch((err) => console.error('Failed sync internal_plans active status:', err))
+          // Update DB system_plans
+          await supabaseRest(`system_plans?internal_plan_id=eq.${encodeURIComponent(row.id)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: 'ACTIVE' }),
+          }).catch((err) => console.error('Failed sync system_plans active status:', err))
+        }
+      }
+
+      return {
+        id: row.id,
+        plan_name: displayPlanName(row),
+        country_iso3: row.country_iso3,
+        operator_name: operatorNameFromInternalPlan(row, systemOperatorNames),
+        operator_ref: row.operator_ref,
+        category: row.category,
+        active,
+      }
+    })
+  )
 
   if (operatorName) {
     const needle = operatorName.toLowerCase()
@@ -90,4 +146,39 @@ export async function GET(request: Request) {
       q: q || null,
     },
   })
+}
+
+export async function PATCH(request: Request) {
+  if (!(await adminCanUseFeature(request, 'products', { allowLegacyHeader: true }))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  try {
+    const body = await request.json().catch(() => ({}))
+    const { id, active } = body
+
+    if (!id || typeof active !== 'boolean') {
+      return NextResponse.json({ error: 'id and active (boolean) are required' }, { status: 400 })
+    }
+
+    const res = await supabaseRest(`internal_plans?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
+    })
+
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Failed to update plan status' }, { status: 500 })
+    }
+
+    // Update corresponding system plan status
+    await supabaseRest(`system_plans?internal_plan_id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: active ? 'ACTIVE' : 'INACTIVE' }),
+    }).catch((err) => console.error('Failed to sync system_plans status:', err))
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to update plan status:', error)
+    return NextResponse.json({ error: 'Failed to update plan status' }, { status: 500 })
+  }
 }

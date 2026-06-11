@@ -46,10 +46,14 @@ export async function fetchRoutingCountries(): Promise<{ iso3: string; label: st
 
 export async function fetchRoutingOperators(countryIso3: string) {
   const country = countryIso3.trim().toUpperCase()
-  const rows = (await aggListSystemOperators({ country, limit: 500, offset: 0, mobileCatalogOnly: true })) as Record<string, unknown>[]
-  return rows
-    .filter((row) => isMobileCatalogOperator(row))
-    .map((row) => {
+  const res = await supabaseRest(
+    `system_operators?country_id=eq.${enc(country)}&select=id,system_operator_name,slug&limit=500`,
+    { cache: 'no-store' }
+  )
+  if (!res.ok) return []
+  const rows = (await res.json()) as any[]
+  
+  return rows.map((row) => {
     const id = String(row.id ?? '')
     const name = String(row.system_operator_name ?? row.slug ?? id)
     return {
@@ -57,7 +61,7 @@ export async function fetchRoutingOperators(countryIso3: string) {
       label: name,
       countryId: country,
     }
-  })
+  }).sort((a, b) => a.label.localeCompare(b.label))
 }
 
 export async function fetchRoutingProductTypes(countryIso3: string, operatorId: string) {

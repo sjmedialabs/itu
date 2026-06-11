@@ -2,6 +2,7 @@ import { getConnector } from '@/lib/providers/registry'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { aggUpsertRawOperator, aggUpsertRawPlan } from '@/lib/aggregator/repository'
 import { sha256 } from '@/lib/aggregator/signature'
+import { resolveSyncCountries, type SyncCatalogOptions } from '@/lib/lcr/sync-options'
 
 function rawOperatorFromPlan(plan: any) {
   const raw: any = plan.raw ?? {}
@@ -25,10 +26,12 @@ function rawOperatorFromPlan(plan: any) {
 export async function runStep2Fetch(
   providerId: string,
   config: any,
-  syncRunId?: string | null
+  syncRunId?: string | null,
+  options?: SyncCatalogOptions
 ): Promise<{ success: boolean; message: string; data?: any }> {
   const connector = getConnector(config.adapterKey)
-  const raw = await connector.fetchRawPlans(config, { countries: config.supportedCountries })
+  const countries = resolveSyncCountries(config, options)
+  const raw = await connector.fetchRawPlans(config, { countries })
   const normalized = await connector.normalizePlans({ config, raw })
 
   // Clear existing raw plans/operators first
