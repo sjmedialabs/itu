@@ -349,7 +349,7 @@ export default function AdminProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Products</h1>
+          <h1 className="text-2xl font-bold">Plans</h1>
           <p className="text-muted-foreground">
             Catalog plans from all synced countries. Use column filters below — leave country on &quot;All countries&quot; for the full catalog.
           </p>

@@ -14,6 +14,7 @@ import { extractRawPlanFields } from '@/lib/aggregator/telecom-validator'
 import { buildSystemPlanInput } from '@/lib/aggregator/plan-normalizer'
 import { createOrGetInternalPlan } from '@/lib/aggregator/sync-service'
 import { OperatorTrustEngine } from '@/lib/aggregator/catalog-intelligence/trust-engine'
+import { dbUpsertInternalPlanMapping } from '@/lib/uti/repository'
 
 export async function runStep7Promote(
   providerId: string,
@@ -234,6 +235,20 @@ export async function runStep7Promote(
             isVerified: false,
           })
         }
+
+        // Insert/update active internal plan provider mapping for LCR
+        await dbUpsertInternalPlanMapping({
+          internalPlanId: internal.plan.id,
+          providerId,
+          providerPlanId: String(plan.aggregator_plan_id),
+          providerPrice: plan.retail_amount ?? 0,
+          providerCurrency: plan.currency_unit || 'USD',
+          providerPriority: config.priority ?? 100,
+          margin: 0,
+          enabled: true,
+        }).catch((err) => {
+          console.error('Failed to upsert internal_plan_provider_mapping in promote stage:', err)
+        })
       }
     }
 

@@ -4,7 +4,14 @@ import { supabaseRest } from '@/lib/db/supabase-rest'
 import { rowToProviderConfig } from '@/lib/lcr-v2/provider-credentials'
 import type { ProviderConfig } from '@/lib/providers/types'
 
-export type ExecuteResult = { ok: boolean; providerRef?: string; raw?: unknown; error?: string }
+export type ExecuteResult = {
+  ok: boolean
+  providerRef?: string
+  raw?: unknown
+  error?: string
+  errorCode?: string
+  errorMessage?: string
+}
 
 function getPathValue(obj: any, path: string): any {
   if (!obj || !path) return undefined
@@ -207,12 +214,43 @@ export async function executeMappedRecharge(input: {
 
     // 4. Evaluate success and response mapping
     if (!isSuccessFn(rawResponse)) {
-      return { ok: false, error: getErrorFn(rawResponse), raw: rawResponse }
+      const errMsg = getErrorFn(rawResponse) || 'TRANSACTION_FAILED'
+      let errCode = 'TRANSACTION_FAILED'
+      if (key === 'ding' && Array.isArray(rawResponse?.ErrorCodes) && rawResponse.ErrorCodes[0]) {
+        errCode = String(rawResponse.ErrorCodes[0].Code || errCode)
+      } else if (key === 'valuetopup' && rawResponse?.responseCode) {
+        errCode = String(rawResponse.responseCode)
+      }
+      return { ok: false, error: errMsg, errorCode: errCode, errorMessage: errMsg, raw: rawResponse }
     }
 
     const ref = getRefFn(rawResponse, input.externalId)
     return { ok: true, providerRef: ref, raw: rawResponse }
   } catch (error: any) {
-    return { ok: false, error: error.message || 'TRANSACTION_ERROR' }
+    let errorCode = 'TRANSACTION_ERROR'
+    let errorMessage = error.message || 'Unknown transaction error'
+    const errStr = String(error.message || '')
+    if (errStr.includes('HTTP ') && errStr.includes('{')) {
+      try {
+        const jsonStartIndex = errStr.indexOf('{')
+        const jsonStr = errStr.slice(jsonStartIndex)
+        const jsonErr = JSON.parse(jsonStr)
+        if (Array.isArray(jsonErr.errors) && jsonErr.errors[0]) {
+          errorCode = String(jsonErr.errors[0].code || errorCode)
+          errorMessage = String(jsonErr.errors[0].message || errorMessage)
+        } else if (jsonErr.message || jsonErr.error) {
+          errorMessage = jsonErr.message || jsonErr.error
+          if (jsonErr.code) errorCode = String(jsonErr.code)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return {
+      ok: false,
+      error: errorMessage,
+      errorCode,
+      errorMessage,
+    }
   }
 }

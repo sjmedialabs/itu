@@ -376,6 +376,7 @@ export default function TopupPlanSelectionPage() {
         const json = (await res.json().catch(() => ({}))) as { plans?: DbPlan[]; error?: string }
         const raw = Array.isArray(json.plans) ? json.plans : []
         // Filter out plans with zero/negative prices only; keep -1 validity (DT One uses it for 'no expiry')
+        console.log('Fetched plans:', raw)
         const valid = raw.filter((p) => {
           if (p.price_inr <= 0 && p.price_eur <= 0) return false
           return true
@@ -513,11 +514,11 @@ export default function TopupPlanSelectionPage() {
                   className="h-8 rounded-none border-0 bg-transparent p-0 text-sm font-medium text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:border-transparent focus-visible:ring-0 w-full"
                 />
               </div>
-              {phoneError && (
+              {/* {phoneError && (
                 <span className="text-[10px] text-red-500 mt-1 font-semibold pl-1">
                   10+ digit number required
                 </span>
-              )}
+              )} */}
             </div>
             <div className="flex items-center rounded-xl bg-white ring-1 ring-black/10 w-full px-2">
               <Select

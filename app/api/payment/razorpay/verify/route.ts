@@ -87,6 +87,7 @@ export async function POST(request: Request) {
         providerName: result.providerName,
         status: result.status,
         error: result.error,
+        hints: result.hints,
       })
     }
 

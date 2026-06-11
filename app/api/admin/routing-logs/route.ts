@@ -16,15 +16,142 @@ export async function GET(request: Request) {
   const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? 50)))
   const offset = Math.max(0, Number(url.searchParams.get('offset') ?? 0))
 
-  const { logs, total } = await listRoutingLogs({
+  // Fetch a larger batch from database to allow in-memory grouping
+  const { logs, total: rawTotal } = await listRoutingLogs({
     countryId,
     operatorId,
     providerId,
     from,
     to,
-    limit,
-    offset,
+    limit: 1000,
+    offset: 0,
   })
 
-  return NextResponse.json({ logs, total, limit, offset })
+  // Group by transactionId
+  const groups: Record<string, typeof logs> = {}
+  const ungrouped: typeof logs = []
+
+  for (const log of logs) {
+    if (!log.transactionId) {
+      ungrouped.push(log)
+    } else {
+      if (!groups[log.transactionId]) {
+        groups[log.transactionId] = []
+      }
+      groups[log.transactionId].push(log)
+    }
+  }
+
+  const groupedLogs: any[] = []
+
+  // Helper to parse status JSON
+  const parseStatus = (statusStr: string) => {
+    try {
+      if (statusStr && statusStr.startsWith('{')) {
+        return JSON.parse(statusStr)
+      }
+    } catch (e) {}
+    return null
+  }
+
+  // Process grouped logs
+  for (const [txId, txLogs] of Object.entries(groups)) {
+    // Sort txLogs by createdAt asc to process in chronological order
+    const sortedTxLogs = [...txLogs].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    
+    // Find the final event or the latest event
+    let finalLog = sortedTxLogs[sortedTxLogs.length - 1]
+    let maxAttempt = 0
+    let strategy = 'LEAST_COST'
+    let ruleMatched = 'No'
+    let ruleId: string | null = null
+    let ruleProvider: string | null = null
+    let resolvedProviderName = finalLog.providerName
+    let resolvedProviderCode = finalLog.providerCode
+    let resolvedCost = finalLog.providerCost
+    let outcomeStatus = 'processing'
+
+    for (const log of sortedTxLogs) {
+      const parsed = parseStatus(log.status)
+      if (parsed) {
+        if (parsed.routingStrategy) strategy = parsed.routingStrategy
+        if (parsed.routingRuleMatched) ruleMatched = parsed.routingRuleMatched
+        if (parsed.routingRuleId) ruleId = parsed.routingRuleId
+        if (parsed.routingRuleProvider) ruleProvider = parsed.routingRuleProvider
+        if (parsed.attemptNumber && parsed.attemptNumber > maxAttempt) {
+          maxAttempt = parsed.attemptNumber
+        }
+        
+        const event = parsed.event
+        if (event === 'RECHARGE_SUCCESS') {
+          outcomeStatus = 'success'
+          finalLog = log
+          resolvedProviderName = log.providerName
+          resolvedProviderCode = log.providerCode
+          resolvedCost = log.providerCost
+        } else if (
+          event === 'RECHARGE_FAILED' ||
+          event === 'MAX_RETRY_EXCEEDED' ||
+          event === 'NO_PROVIDER_MAPPING' ||
+          event === 'INTERNAL_PLAN_NOT_FOUND' ||
+          event === 'NO_ELIGIBLE_PROVIDER'
+        ) {
+          outcomeStatus = 'failed'
+          finalLog = log
+        }
+      } else {
+        // Legacy status handling
+        if (log.status === 'success' || log.status === 'completed') {
+          outcomeStatus = 'success'
+        } else if (log.status === 'failed') {
+          outcomeStatus = 'failed'
+        }
+      }
+    }
+
+    groupedLogs.push({
+      id: finalLog.id,
+      transactionId: txId,
+      countryId: finalLog.countryId,
+      operatorId: finalLog.operatorId,
+      productId: finalLog.productId,
+      providerCode: resolvedProviderCode,
+      providerName: resolvedProviderName,
+      routingType: ruleMatched === 'Yes' ? 'RULE' : 'LCR',
+      providerCost: resolvedCost,
+      fallbackUsed: maxAttempt > 1,
+      status: outcomeStatus,
+      createdAt: finalLog.createdAt,
+      metadata: {
+        routingStrategy: strategy,
+        ruleMatched,
+        ruleId,
+        ruleProvider,
+        totalAttempts: maxAttempt || 1,
+      }
+    })
+  }
+
+  // Add ungrouped logs
+  for (const log of ungrouped) {
+    const parsed = parseStatus(log.status)
+    groupedLogs.push({
+      ...log,
+      metadata: {
+        routingStrategy: parsed?.routingStrategy ?? 'LCR',
+        ruleMatched: parsed?.routingRuleMatched ?? (log.routingType === 'RULE' ? 'Yes' : 'No'),
+        ruleId: parsed?.routingRuleId ?? null,
+        ruleProvider: parsed?.routingRuleProvider ?? null,
+        totalAttempts: parsed?.attemptNumber ?? 1,
+      }
+    })
+  }
+
+  // Sort all grouped and ungrouped logs by createdAt descending
+  groupedLogs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  const total = groupedLogs.length
+  const paginated = groupedLogs.slice(offset, offset + limit)
+
+  return NextResponse.json({ logs: paginated, total, limit, offset })
 }
