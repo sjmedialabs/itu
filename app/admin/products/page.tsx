@@ -339,11 +339,23 @@ export default function AdminProductsPage() {
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(plans.length / pageSize))
+  const sortedPlans = useMemo(() => {
+    return [...plans].sort((a, b) => {
+      const countryA = countryNameMap.get(a.country_iso3.toUpperCase()) || countryDisplayName(a.country_iso3) || ''
+      const countryB = countryNameMap.get(b.country_iso3.toUpperCase()) || countryDisplayName(b.country_iso3) || ''
+      
+      const comp = countryA.localeCompare(countryB)
+      if (comp !== 0) return comp
+      
+      return a.plan_name.localeCompare(b.plan_name)
+    })
+  }, [plans, countryNameMap])
+
+  const totalPages = Math.max(1, Math.ceil(sortedPlans.length / pageSize))
   const paginatedPlans = useMemo(() => {
     const start = (page - 1) * pageSize
-    return plans.slice(start, start + pageSize)
-  }, [plans, page, pageSize])
+    return sortedPlans.slice(start, start + pageSize)
+  }, [sortedPlans, page, pageSize])
 
   return (
     <div className="space-y-6">
@@ -478,7 +490,7 @@ export default function AdminProductsPage() {
                     Loading products…
                   </TableCell>
                 </TableRow>
-              ) : plans.length === 0 ? (
+              ) : sortedPlans.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     No products match your filters. Sync providers to ingest plans from more countries.
@@ -537,12 +549,12 @@ export default function AdminProductsPage() {
             </TableBody>
           </Table>
 
-          {plans.length > 0 && (
+          {sortedPlans.length > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border/40 mt-4">
               {/* Info text */}
               <div className="text-xs text-muted-foreground font-medium">
-                Showing {Math.min((page - 1) * pageSize + 1, plans.length)} to{' '}
-                {Math.min(page * pageSize, plans.length)} of {plans.length} products
+                Showing {Math.min((page - 1) * pageSize + 1, sortedPlans.length)} to{' '}
+                {Math.min(page * pageSize, sortedPlans.length)} of {sortedPlans.length} products
               </div>
 
               {/* Navigation buttons & Rows selector */}

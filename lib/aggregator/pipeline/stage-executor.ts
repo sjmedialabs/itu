@@ -10,6 +10,8 @@ import { rowToProviderConfig } from '@/lib/lcr-v2/provider-credentials'
 import { cacheDelByPrefix } from '@/lib/cache/redis'
 import type { AggregatorSyncResult } from '@/lib/aggregator/types'
 import { resolveSyncCountries, type SyncCatalogOptions } from '@/lib/lcr/sync-options'
+import { validateCountriesTable } from '@/lib/aggregator/country-startup-validation'
+import { loadCountryRegistry } from '@/lib/aggregator/country-registry'
 import { runStep1Check } from './stages/step1-check'
 import { runStep2Fetch } from './stages/step2-fetch'
 import { runStep3Countries } from './stages/step3-countries'
@@ -77,6 +79,9 @@ export async function runFullSyncPipeline(providerId: string, options?: SyncCata
   const config = rowToProviderConfig(providerRow as any)
 
   const syncRunId = await aggStartSyncRun(config.code)
+
+  await validateCountriesTable()
+  await loadCountryRegistry()
 
   await aggInsertSyncLog({
     serviceProviderId: providerId,

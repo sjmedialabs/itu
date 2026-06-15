@@ -1,37 +1,50 @@
 import { supabaseRest } from '@/lib/db/supabase-rest'
-import { getOrCreateCanonicalCountry } from '@/lib/aggregator/country-normalizer'
+import {
+  loadCountryRegistry,
+  lookupCountryInRegistry,
+  logUnknownCountry,
+} from '@/lib/aggregator/country-registry'
+import { validateCountriesTable } from '@/lib/aggregator/country-startup-validation'
 
 export async function runStep3Countries(
   providerId: string,
   config: any,
   syncRunId?: string | null
 ): Promise<{ success: boolean; message: string; data?: any }> {
+  await validateCountriesTable()
+  const registry = await loadCountryRegistry()
+
   const res = await supabaseRest(`provider_operator_raw?service_provider_id=eq.${providerId}&select=*`, { cache: 'no-store' })
   const rawOps = await res.json().catch(() => []) as any[]
 
-  let normalizedCount = 0
+  let matchedCount = 0
+  let unknownCount = 0
+
   for (const rawOp of rawOps) {
     const rawCountry = rawOp.raw_response_json?.country || rawOp.raw_response_json || {}
-    const iso2 = rawOp.iso_code || rawOp.country_code || rawCountry.iso_code || ''
-    const iso3 = rawCountry.iso_code3 || ''
-    const countryName = rawCountry.name || ''
+    const countryInput = {
+      countryName: rawCountry.name || undefined,
+      iso2: rawOp.iso_code || rawOp.country_code || rawCountry.iso_code || undefined,
+      iso3: rawCountry.iso_code3 || undefined,
+    }
 
-    const canonical = await getOrCreateCanonicalCountry({
-      countryName: countryName || undefined,
-      iso2: iso2 || undefined,
-      iso3: iso3 || undefined,
-    })
+    const canonical = lookupCountryInRegistry(registry, countryInput)
     if (canonical) {
-      normalizedCount++
+      matchedCount++
+    } else {
+      unknownCount++
+      logUnknownCountry(config.code, countryInput)
     }
   }
 
   return {
     success: true,
-    message: `Normalized country ISO data. Checked ${rawOps.length} operators and updated ${normalizedCount} canonical country matches.`,
+    message: `Validated country mappings. Checked ${rawOps.length} operators: ${matchedCount} matched canonical registry, ${unknownCount} unknown.`,
     data: {
       checked: rawOps.length,
-      normalized: normalizedCount,
+      matched: matchedCount,
+      unknown: unknownCount,
+      normalized: matchedCount,
     },
   }
 }

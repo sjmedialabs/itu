@@ -36,8 +36,12 @@ import {
   printPipelineReport,
   summarizeDiagnostics,
 } from '@/lib/aggregator/sync-diagnostics'
-import { normalizeCountryIso3 } from '@/lib/lcr/countries'
-import { getOrCreateCanonicalCountry } from '@/lib/aggregator/country-normalizer'
+import {
+  loadCountryRegistry,
+  lookupCountryInRegistry,
+  logUnknownCountry,
+} from '@/lib/aggregator/country-registry'
+import { validateCountriesTable } from '@/lib/aggregator/country-startup-validation'
 import { buildSystemOperatorInput } from '@/lib/aggregator/operator-normalizer'
 import { buildSystemPlanInput, scorePlanCandidate, isValidSystemPlan } from '@/lib/aggregator/plan-normalizer'
 import { validateOperatorTelecomService, validateRawOperatorPlans, extractRawPlanFields } from '@/lib/aggregator/telecom-validator'
@@ -173,6 +177,8 @@ export async function syncAggregatorProvider(
 
   try {
     const diag = createSyncDiagnostics(providerId, config.code)
+    await validateCountriesTable()
+    const countryRegistry = await loadCountryRegistry()
     const dynamicMode = await canUseDynamicClassification().catch(() => false)
     const { trustedOperators, domainRegistry, nonTelecomRegistry } = await aggLoadCatalogIntelligenceRegistries().catch(() => ({
       trustedOperators: [],
@@ -196,14 +202,17 @@ export async function syncAggregatorProvider(
       
       const rawOperatorObj = (plan.raw as any)?.operator ?? {}
       const rawCountryObj = rawOperatorObj?.country ?? {}
-      const canonicalCountry = await getOrCreateCanonicalCountry({
+      const countryInput = {
         countryName: rawCountryObj?.name || (plan.raw as any)?.countryName || (plan.raw as any)?.CountryName,
         iso2: providerCountry.length === 2 ? providerCountry : rawCountryObj?.iso_code || undefined,
         iso3: providerCountry.length === 3 ? providerCountry : rawCountryObj?.iso_code3 || undefined,
-      })
+      }
+      const canonicalCountry = lookupCountryInRegistry(countryRegistry, countryInput)
 
       if (canonicalCountry) {
         plan.countryIso3 = canonicalCountry.id
+      } else {
+        logUnknownCountry(config.code, countryInput)
       }
 
       if (diag.countryMappings.length < 20) {
