@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import Razorpay from 'razorpay'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { supabaseGetUser } from '@/lib/supabase/auth-rest'
+import { runtimeEnv } from '@/lib/env/runtime'
 
 async function getUserIdFromRequest(request: Request): Promise<string | null> {
   const cookie = request.headers.get('cookie') ?? ''
@@ -38,15 +38,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields: planId, amount, mobileNumber' }, { status: 400 })
     }
 
-    const keyId = process.env.RAZORPAY_KEY_ID
-    const keySecret = process.env.RAZORPAY_KEY_SECRET
+    const keyId = runtimeEnv('RAZORPAY_KEY_ID')
+    const keySecret = runtimeEnv('RAZORPAY_KEY_SECRET')
     if (!keyId || !keySecret) {
       return NextResponse.json({ error: 'Razorpay keys not configured' }, { status: 500 })
     }
 
-    // Create Razorpay order
-    const razorpay = new Razorpay({ key_id: keyId, key_secret: keySecret })
-    const razorpayOrder = await razorpay.orders.create({
+    const orderPayload = {
       amount: Math.round(amount * 100), // convert to paise
       currency,
       notes: {
@@ -55,7 +53,25 @@ export async function POST(request: Request) {
         operator_id: operatorId,
         country_id: countryId,
       },
+    }
+
+    const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64')
+    const rpRes = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(orderPayload),
     })
+    const rpBody = (await rpRes.json().catch(() => null)) as
+      | { id?: string; amount?: number; error?: { description?: string } }
+      | null
+    if (!rpRes.ok || !rpBody?.id) {
+      const detail = rpBody?.error?.description || `Razorpay HTTP ${rpRes.status}`
+      return NextResponse.json({ error: detail }, { status: 502 })
+    }
+    const razorpayOrder = { id: rpBody.id, amount: rpBody.amount ?? orderPayload.amount }
 
     const userId = await getUserIdFromRequest(request)
 

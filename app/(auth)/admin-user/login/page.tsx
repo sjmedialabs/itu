@@ -70,10 +70,10 @@ export default function AdminUserLoginPage() {
     e.preventDefault()
     setError('')
 
-    if (!turnstileToken && process.env.NODE_ENV === 'production') {
-      setError('Please complete the CAPTCHA')
-      return
-    }
+    // if (!turnstileToken && process.env.NODE_ENV === 'production') {
+    //   setError('Please complete the CAPTCHA')
+    //   return
+    // }
 
     const result = await login(email.trim(), password, fingerprint || undefined, turnstileToken, 'admin-user')
 
@@ -303,7 +303,7 @@ export default function AdminUserLoginPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-center py-2 min-h-[75px] items-center">
+                {/* <div className="flex justify-center py-2 min-h-[75px] items-center">
                   <div className={email.trim() && password ? '' : 'hidden'}>
                     <Turnstile
                       ref={turnstileRef}
@@ -316,7 +316,7 @@ export default function AdminUserLoginPage() {
                       Please enter your email and password to verify CAPTCHA
                     </p>
                   )}
-                </div>
+                </div> */}
 
                 <Button
                   type="submit"
