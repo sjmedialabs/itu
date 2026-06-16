@@ -121,6 +121,7 @@ function SettingsContent() {
   const [searchQuery, setSearchQuery] = useState("")
   const [pageFilter, setPageFilter] = useState("all")
   const [selectedLog, setSelectedLog] = useState<any>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const fetchActivityLogs = async () => {
     setLoadingLogs(true)
@@ -145,6 +146,10 @@ function SettingsContent() {
     }
   }, [activeTab])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, pageFilter])
+
   const filteredLogs = logs.filter(log => {
     const matchesPage = pageFilter === 'all' || log.page_name === pageFilter
     const query = searchQuery.toLowerCase().trim()
@@ -159,6 +164,14 @@ function SettingsContent() {
 
     return matchesPage && matchesSearch
   })
+
+  const itemsPerPage = 10
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / itemsPerPage))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const paginatedLogs = filteredLogs.slice(
+    (safeCurrentPage - 1) * itemsPerPage,
+    safeCurrentPage * itemsPerPage
+  )
 
   useEffect(() => {
     if (activeTab !== 'security') return
@@ -1136,14 +1149,14 @@ function SettingsContent() {
                           Loading activity logs...
                         </TableCell>
                       </TableRow>
-                    ) : filteredLogs.length === 0 ? (
+                    ) : paginatedLogs.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                           No activity logs found.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredLogs.map((log) => (
+                      paginatedLogs.map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(log.created_at).toLocaleString()}
@@ -1181,6 +1194,45 @@ function SettingsContent() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Pagination Controls */}
+              {filteredLogs.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border/40 mt-4">
+                  {/* Info text */}
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Showing {Math.min((safeCurrentPage - 1) * 10 + 1, filteredLogs.length)} to{' '}
+                    {Math.min(safeCurrentPage * 10, filteredLogs.length)} of {filteredLogs.length} logs
+                  </div>
+
+                  {/* Page Navigation */}
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs font-semibold rounded-xl"
+                      onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                      disabled={safeCurrentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    
+                    {/* Page indicator */}
+                    <span className="text-xs font-semibold px-2">
+                      Page {safeCurrentPage} of {totalPages}
+                    </span>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs font-semibold rounded-xl"
+                      onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                      disabled={safeCurrentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

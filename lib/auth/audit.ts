@@ -155,6 +155,10 @@ export async function sendLoginOtp({ email, otp }: { email: string; otp: string 
   }
 }
 
+// Memory cache to deduplicate rapid view logs (e.g. from concurrent client page loads or strict mode)
+const recentViewLogs = new Map<string, number>()
+const DEDUPLICATE_WINDOW_MS = 5000 // 5 seconds
+
 export async function logAdminActivity({
   action,
   pageName,
@@ -174,6 +178,26 @@ export async function logAdminActivity({
 
     const profile = await fetchProfileForUser(u.id)
     if (!profile) return
+
+    // Deduplicate rapid duplicate "View" logs
+    if (action.toLowerCase().startsWith('view')) {
+      const cacheKey = `${profile.id}-${action.toLowerCase()}-${pageName.toLowerCase()}`
+      const now = Date.now()
+      const lastLogTime = recentViewLogs.get(cacheKey)
+      if (lastLogTime && now - lastLogTime < DEDUPLICATE_WINDOW_MS) {
+        return
+      }
+      recentViewLogs.set(cacheKey, now)
+
+      // Clean up old entries periodically to prevent memory growth
+      if (recentViewLogs.size > 1000) {
+        for (const [key, timestamp] of recentViewLogs.entries()) {
+          if (now - timestamp > DEDUPLICATE_WINDOW_MS) {
+            recentViewLogs.delete(key)
+          }
+        }
+      }
+    }
 
     const headerList = await headers()
     const ipAddress = headerList.get('x-forwarded-for')?.split(',')[0] || headerList.get('x-real-ip') || '127.0.0.1'
@@ -195,3 +219,4 @@ export async function logAdminActivity({
     console.error('Failed to log admin activity:', error)
   }
 }
+
