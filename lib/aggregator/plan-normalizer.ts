@@ -29,11 +29,14 @@ export function systemPlanName(plan: NormalizedPlan): string {
   return plan.name || plan.description || amount || normalizedPlanSignature(plan)
 }
 
-export function buildSystemPlanInput(params: {
-  plan: NormalizedPlan
-  systemOperatorId: string
-  internalPlanId?: string | null
-}): SystemPlanInput {
+export function buildSystemPlanInput(
+  params: {
+    plan: NormalizedPlan
+    systemOperatorId: string
+    internalPlanId?: string | null
+  },
+  countryCode?: string | null,
+): SystemPlanInput {
   const parts = extractPlanSignatureParts(params.plan)
   const name = systemPlanName(params.plan)
   return {
@@ -51,6 +54,7 @@ export function buildSystemPlanInput(params: {
     description: params.plan.description ?? params.plan.name ?? null,
     normalizedSignature: normalizedPlanSignature(params.plan),
     status: 'ACTIVE',
+    countryCode: countryCode ?? params.plan.countryIso3 ?? 'UNK',
   }
 }
 

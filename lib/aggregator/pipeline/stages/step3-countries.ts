@@ -12,14 +12,8 @@ import {
   dbReplaceAggPlanBenefits,
 } from '@/lib/db/agg-catalog'
 import * as countries from 'i18n-iso-countries'
-
-function stringToBigInt(str: string): number {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash * 33) ^ str.charCodeAt(i)
-  }
-  return Math.abs(hash | 0)
-}
+import { stringToBigInt } from '@/lib/aggregator/agg-id-hash'
+import { resolvePlanCountryCode } from '@/lib/aggregator/plan-country-resolver'
 
 function resolveCountryIso3(op: any, registry: Awaited<ReturnType<typeof loadCountryRegistry>>): string {
   const rawCountry = op.raw_response_json?.country || op.raw_response_json || {}
@@ -125,6 +119,17 @@ export async function runStep3Countries(
       const dbOpUuid = opIdMap.get(aggOpId)
       if (!dbOpUuid) return null
 
+      const operatorCountryIso3 = resolveCountryIso3(rawOp, registry)
+      const countryCode =
+        rp.country_code && String(rp.country_code).trim()
+          ? String(rp.country_code).trim().toUpperCase()
+          : resolvePlanCountryCode({
+              planName: rp.provider_plan_name,
+              planDescription: rp.description,
+              rawPlan: rp.raw_json,
+              operatorCountryIso3,
+            })
+
       return {
         provider: config.code as any,
         aggregator_plan_id: stringToBigInt(rp.provider_plan_id),
@@ -139,6 +144,7 @@ export async function runStep3Countries(
         service_domain_confidence: 0,
         service_domain_source: 'raw_import',
         status: 'active',
+        country_code: countryCode,
       }
     })
     .filter(Boolean) as any[]

@@ -24,6 +24,16 @@ import {
   isRegistryVerifiedOperator,
   REGISTRY_VERIFIED_SOURCE,
 } from '@/lib/aggregator/pipeline/registry-fast-path'
+import {
+  buildRawPlanLookupByAggId,
+  type RawPlanAggLookup,
+} from '@/lib/aggregator/agg-id-hash'
+import {
+  logCrossCountrySkip,
+  planCountryMatchesOperator,
+  resolvePlanCountryCode,
+  toCanonicalPlanCountryCode,
+} from '@/lib/aggregator/plan-country-resolver'
 
 async function deactivateMappedSystemOperator(providerId: string, operatorName: string) {
   const rawOpRes = await supabaseRest(
@@ -52,6 +62,13 @@ async function deactivateMappedSystemOperator(providerId: string, operatorName: 
   }).catch(() => {})
 }
 
+function resolveRawPlanForAggPlan(
+  plan: { aggregator_plan_id: number },
+  rawPlanByAggId: Map<number, RawPlanAggLookup>,
+): RawPlanAggLookup | undefined {
+  return rawPlanByAggId.get(Number(plan.aggregator_plan_id))
+}
+
 async function promoteOperatorPlans(input: {
   providerId: string
   config: any
@@ -59,10 +76,39 @@ async function promoteOperatorPlans(input: {
   systemOperatorId: string
   telecomPlans: any[]
   displayOperatorName: string
-}): Promise<number> {
+  rawPlanByAggId: Map<number, RawPlanAggLookup>
+}): Promise<{ promoted: number; skippedCrossCountry: number }> {
   let promotedPlans = 0
+  let skippedCrossCountryPlans = 0
+  const operatorCountry = toCanonicalPlanCountryCode(input.op.country_iso3)
 
   for (const plan of input.telecomPlans) {
+    const planCountry =
+      plan.country_code && String(plan.country_code).trim()
+        ? toCanonicalPlanCountryCode(plan.country_code)
+        : resolvePlanCountryCode({
+            planName: plan.name,
+            planDescription: plan.description,
+            rawPlan: plan.raw_response,
+            operatorCountryIso3: operatorCountry,
+          })
+
+    if (!planCountryMatchesOperator(planCountry, operatorCountry)) {
+      skippedCrossCountryPlans++
+      logCrossCountrySkip('Step7', {
+        planId: plan.id,
+        planName: plan.name,
+        planCountry,
+        operatorName: input.displayOperatorName,
+        operatorCountry,
+        action: 'promotion',
+      })
+      continue
+    }
+
+    const rawPlanEntry = resolveRawPlanForAggPlan(plan, input.rawPlanByAggId)
+    const providerPlanId = rawPlanEntry?.provider_plan_id ?? String(plan.aggregator_plan_id)
+
     const fields = extractRawPlanFields(plan.raw_response)
     const serviceStr = fields.serviceName || (plan.type === 'DATA' || String(plan.type).toUpperCase().includes('DATA') ? 'Data' : 'Mobile')
     const subserviceStr = fields.subserviceName || undefined
@@ -70,7 +116,7 @@ async function promoteOperatorPlans(input: {
     const normalizedPlanForUpsert = {
       providerId: input.providerId,
       providerCode: input.config.code,
-      providerPlanId: String(plan.aggregator_plan_id),
+      providerPlanId,
       countryIso3: input.op.country_iso3,
       operatorRef: `system:${input.systemOperatorId}`,
       operatorName: input.displayOperatorName,
@@ -96,37 +142,41 @@ async function promoteOperatorPlans(input: {
         plan: normalizedPlanForUpsert,
         systemOperatorId: input.systemOperatorId,
         internalPlanId: internal.plan.id,
-      }),
+      }, planCountry),
     )
 
     if (!systemPlan?.id) continue
     promotedPlans++
 
-    const rawPlanRes = await supabaseRest(
-      `provider_plans_raw?provider_id=eq.${input.providerId}&provider_plan_id=eq.${plan.aggregator_plan_id}&limit=1`,
-      { cache: 'no-store' },
-    )
-    const rawPlanRows = await rawPlanRes.json().catch(() => []) as any[]
-    const rawPlanId = rawPlanRows[0]?.id
-
+    const rawPlanId = rawPlanEntry?.id
     if (rawPlanId) {
       await aggUpsertPlanMapping({
         serviceProviderId: input.providerId,
         providerPlanRawId: rawPlanId,
-        providerPlanId: String(plan.aggregator_plan_id),
+        providerPlanId,
         systemPlanId: systemPlan.id,
         matchingScore: 100,
         matchingReason: isRegistryVerifiedOperator(input.op)
           ? 'Registry fast path promotion'
           : 'Promoted step staging match',
         isVerified: isRegistryVerifiedOperator(input.op),
+        countryCode: planCountry,
+      }).catch((err) => {
+        console.error(
+          `[Step7] Failed plan_mappings upsert for provider_plan_id=${providerPlanId}:`,
+          err,
+        )
       })
+    } else {
+      console.warn(
+        `[Step7] No provider_plans_raw row for aggregator_plan_id=${plan.aggregator_plan_id} (provider=${input.config.code})`,
+      )
     }
 
     await dbUpsertInternalPlanMapping({
       internalPlanId: internal.plan.id,
       providerId: input.providerId,
-      providerPlanId: String(plan.aggregator_plan_id),
+      providerPlanId,
       providerPrice: plan.retail_amount ?? 0,
       providerCurrency: plan.currency_unit || 'USD',
       providerPriority: input.config.priority ?? 100,
@@ -137,7 +187,7 @@ async function promoteOperatorPlans(input: {
     })
   }
 
-  return promotedPlans
+  return { promoted: promotedPlans, skippedCrossCountry: skippedCrossCountryPlans }
 }
 
 export async function runStep7Promote(
@@ -153,11 +203,20 @@ export async function runStep7Promote(
   const catalogEngine = new CatalogIntelligenceEngine(trustedOperators, domainRegistry, nonTelecomRegistry)
   const registryMatcher = await createRegistryMatcher()
 
+  const rawPlanByAggId = await buildRawPlanLookupByAggId(providerId, async (offset, limit) => {
+    const res = await supabaseRest(
+      `provider_plans_raw?provider_id=eq.${providerId}&select=id,provider_plan_id&limit=${limit}&offset=${offset}`,
+      { cache: 'no-store' },
+    )
+    return (await res.json().catch(() => [])) as Array<{ id: string; provider_plan_id: string }>
+  })
+
   const opsRes = await supabaseRest(`agg_operators?provider=eq.${config.code}&status=eq.active`, { cache: 'no-store' })
   const aggOps = await opsRes.json().catch(() => []) as any[]
 
   let promotedOps = 0
   let promotedPlans = 0
+  let skippedCrossCountryPlans = 0
   let registryPromotedOps = 0
   let skippedNonMobile = 0
 
@@ -188,8 +247,11 @@ export async function runStep7Promote(
     const { telecomPlans, excludedPlans } = filterPlansByExcludedBenefits(aggPlans)
     for (const dpPlan of excludedPlans) {
       await supabaseRest(`agg_plans?id=eq.${dpPlan.id}`, { method: 'DELETE' }).catch(() => {})
+      const excludedProviderPlanId =
+        resolveRawPlanForAggPlan(dpPlan, rawPlanByAggId)?.provider_plan_id ??
+        String(dpPlan.aggregator_plan_id)
       const mapRes = await supabaseRest(
-        `plan_mappings?service_provider_id=eq.${providerId}&provider_plan_id=eq.${dpPlan.aggregator_plan_id}&limit=1`,
+        `plan_mappings?service_provider_id=eq.${providerId}&provider_plan_id=eq.${encodeURIComponent(excludedProviderPlanId)}&limit=1`,
         { cache: 'no-store' },
       )
       const mapRows = await mapRes.json().catch(() => []) as any[]
@@ -308,15 +370,17 @@ export async function runStep7Promote(
       })
     }
 
-    const planCount = await promoteOperatorPlans({
+    const planResult = await promoteOperatorPlans({
       providerId,
       config,
       op,
       systemOperatorId: systemOperator.id,
       telecomPlans,
       displayOperatorName,
+      rawPlanByAggId,
     })
-    promotedPlans += planCount
+    promotedPlans += planResult.promoted
+    skippedCrossCountryPlans += planResult.skippedCrossCountry
 
     if (systemOperator.id) {
       await OperatorTrustEngine.learnFromPromotion(
@@ -334,12 +398,13 @@ export async function runStep7Promote(
 
   return {
     success: true,
-    message: `Promotion complete. Promoted ${promotedOps} operators (${registryPromotedOps} registry fast path) and ${promotedPlans} system plans. Skipped ${skippedNonMobile} non-mobile operators.`,
+    message: `Promotion complete. Promoted ${promotedOps} operators (${registryPromotedOps} registry fast path) and ${promotedPlans} system plans. Skipped ${skippedNonMobile} non-mobile operators and ${skippedCrossCountryPlans} cross-country plans.`,
     data: {
       promotedOps,
       promotedPlans,
       registryPromotedOps,
       skippedNonMobile,
+      skippedCrossCountryPlans,
     },
   }
 }

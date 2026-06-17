@@ -155,6 +155,7 @@ export async function aggUpsertRawPlan(input: RawPlanInput) {
       service_domain: input.serviceDomain ?? null,
       service_domain_confidence: input.serviceDomainConfidence ?? null,
       service_domain_source: input.serviceDomainSource ?? null,
+      country_code: input.countryCode ?? 'UNK',
       fetched_at: new Date().toISOString(),
     }),
   })
@@ -236,6 +237,7 @@ export async function aggUpsertSystemPlan(input: SystemPlanInput) {
       service_domain: input.serviceDomain ?? null,
       service_domain_confidence: input.serviceDomainConfidence ?? null,
       service_domain_source: input.serviceDomainSource ?? null,
+      country_code: input.countryCode ?? 'UNK',
     }),
   })
   const rows = await jsonRows(res)
@@ -269,6 +271,7 @@ export async function aggUpsertPlanMapping(input: {
   matchingReason?: string | null
   isVerified?: boolean
   verifiedBy?: string | null
+  countryCode?: string | null
 }) {
   const res = await supabaseRest(
     'plan_mappings?on_conflict=service_provider_id,provider_plan_raw_id,system_plan_id',
@@ -284,6 +287,7 @@ export async function aggUpsertPlanMapping(input: {
         matching_reason: input.matchingReason ?? null,
         is_verified: input.isVerified ?? false,
         verified_by: input.verifiedBy ?? null,
+        country_code: input.countryCode ?? 'UNK',
         updated_at: new Date().toISOString(),
       }),
     },
@@ -1488,7 +1492,7 @@ export async function aggMergeDuplicateSystemPlansForProvider(
   for (let i = 0; i < systemPlanIds.length; i += 100) {
     const chunk = systemPlanIds.slice(i, i + 100)
     const res = await supabaseRest(
-      `system_plans?id=in.(${chunk.map(enc).join(',')})&select=id,system_operator_id,normalized_signature,status,created_at,internal_plan_id`,
+      `system_plans?id=in.(${chunk.map(enc).join(',')})&select=id,system_operator_id,normalized_signature,country_code,status,created_at,internal_plan_id`,
       { cache: 'no-store' },
     )
     if (!res.ok) continue
@@ -1499,8 +1503,9 @@ export async function aggMergeDuplicateSystemPlansForProvider(
   for (const plan of systemPlans) {
     const signature = String(plan.normalized_signature ?? '').trim()
     const operatorId = String(plan.system_operator_id ?? '').trim()
+    const countryCode = String(plan.country_code ?? 'UNK').trim().toUpperCase() || 'UNK'
     if (!signature || !operatorId) continue
-    const key = `${operatorId}:${signature}`
+    const key = `${countryCode}:${operatorId}:${signature}`
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push(plan)
   }

@@ -3,6 +3,8 @@ import { supabaseRest } from '@/lib/db/supabase-rest'
 import { aggUpsertRawOperator, aggUpsertRawPlan } from '@/lib/aggregator/repository'
 import { sha256 } from '@/lib/aggregator/signature'
 import { resolveSyncCountries, type SyncCatalogOptions } from '@/lib/lcr/sync-options'
+import { resolvePlanCountryCode } from '@/lib/aggregator/plan-country-resolver'
+import { normalizeCountryIso3 } from '@/lib/lcr/countries'
 
 function rawOperatorFromPlan(plan: any) {
   const raw: any = plan.raw ?? {}
@@ -62,9 +64,18 @@ export async function runStep2Fetch(
 
   // Store raw plans
   for (const plan of normalized) {
-    const opId = rawOperatorFromPlan(plan).providerOperatorId
+    const opMeta = rawOperatorFromPlan(plan)
+    const opId = opMeta.providerOperatorId
     const dbOpId = opIdMap.get(opId)
     if (!dbOpId) continue
+
+    const operatorCountryIso3 = normalizeCountryIso3(opMeta.countryCode || plan.countryIso3 || '')
+    const countryCode = resolvePlanCountryCode({
+      planName: plan.name,
+      planDescription: plan.description,
+      rawPlan: plan.raw,
+      operatorCountryIso3,
+    })
 
     const rawPlan = await aggUpsertRawPlan({
       providerId,
@@ -84,6 +95,7 @@ export async function runStep2Fetch(
       rawJson: plan.raw,
       checksumHash: sha256(JSON.stringify(plan.raw)),
       status: 'active',
+      countryCode,
     })
     if (rawPlan?.id) {
       plansStored++
