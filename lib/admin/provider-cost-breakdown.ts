@@ -1,5 +1,6 @@
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { extractPricingFromRaw } from '@/lib/admin/provider-pricing-extractor'
+import { resolveWholesalePricing } from '@/lib/catalog/provider-wholesale-pricing'
 
 function enc(v: string): string {
   return encodeURIComponent(v)
@@ -170,7 +171,7 @@ export async function loadSystemPlanProviderCostBreakdown(
     for (let i = 0; i < rawIds.length; i += 100) {
       const chunk = rawIds.slice(i, i + 100)
       const rawRes = await supabaseRest(
-        `provider_plans_raw?id=in.(${chunk.map(enc).join(',')})&select=id,provider_id,provider_plan_id,raw_json,amount,currency,provider_plan_name`,
+        `provider_plans_raw?id=in.(${chunk.map(enc).join(',')})&select=id,provider_id,provider_plan_id,raw_json,amount,currency,destination_amount,destination_currency,provider_plan_name`,
         { cache: 'no-store' },
       )
       if (!rawRes.ok) continue
@@ -231,10 +232,17 @@ export async function loadSystemPlanProviderCostBreakdown(
     ({ providerId, providerPlanId, rawPlan, matchingScore, isVerified }) => {
       const provider = providerMap.get(providerId)
       const rawData = rawPlan?.raw_json ?? null
+      const wholesale = resolveWholesalePricing({
+        rawJson: rawData,
+        amount: rawPlan?.amount ?? null,
+        currency: rawPlan?.currency ?? null,
+        destinationAmount: rawPlan?.destination_amount ?? null,
+        destinationCurrency: rawPlan?.destination_currency ?? null,
+      })
       const extractedPricing = extractPricingFromRaw(rawData)
 
-      const rawAmount = rawPlan?.amount ?? null
-      const rawCurrency = rawPlan?.currency ?? null
+      const rawAmount = wholesale.wholesaleAmount ?? rawPlan?.amount ?? null
+      const rawCurrency = wholesale.wholesaleCurrency ?? rawPlan?.currency ?? null
 
       if (!extractedPricing.currency && rawCurrency) {
         extractedPricing.currency = rawCurrency
@@ -242,15 +250,16 @@ export async function loadSystemPlanProviderCostBreakdown(
       if (extractedPricing.providerCost == null && rawAmount != null) {
         extractedPricing.providerCost = rawAmount
       }
-      if (extractedPricing.basePrice == null && rawAmount != null) {
-        extractedPricing.basePrice = rawAmount
-      }
 
       const providerCurrency = rawCurrency ?? extractedPricing.currency ?? null
-      const providerPrice = extractedPricing.providerCost ?? rawAmount ?? null
+      const providerPrice = wholesale.wholesaleAmount ?? extractedPricing.providerCost ?? rawAmount ?? null
       const rechargeCost = buildRechargeCost({ extractedPricing, rawAmount })
       const providerRechargeValue =
-        rawAmount ?? extractedPricing.basePrice ?? extractedPricing.finalPrice ?? providerPrice
+        wholesale.destinationAmount ??
+        rawPlan?.destination_amount ??
+        extractedPricing.basePrice ??
+        extractedPricing.finalPrice ??
+        providerPrice
 
       return {
         providerId,
