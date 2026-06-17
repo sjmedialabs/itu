@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Fragment } from 'react'
 import {
   Select,
   SelectContent,
@@ -194,60 +193,21 @@ export default function RoutingLogsPage() {
 
           <Table className="w-full overflow-x-auto">
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[180px]">Time</TableHead>
-
-                <TableHead className="w-[220px]">
-                  Transaction
-                </TableHead>
-
-                <TableHead className="w-[90px]">
-                  Country
-                </TableHead>
-
-                <TableHead className="w-[180px]">
-                  Operator
-                </TableHead>
-
-                <TableHead className="w-[220px]">
-                  Plan
-                </TableHead>
-
-                <TableHead className="w-[100px]">
-                  Type
-                </TableHead>
-
-                <TableHead className="w-[120px]">
-                  Strategy
-                </TableHead>
-
-                <TableHead className="w-[120px]">
-                  Rule Matched
-                </TableHead>
-
-                <TableHead className="w-[180px]">
-                  Rule Provider
-                </TableHead>
-
-                <TableHead className="w-[90px]">
-                  Attempts
-                </TableHead>
-
-                <TableHead className="w-[160px]">
-                  Provider
-                </TableHead>
-
-                <TableHead className="w-[120px]">
-                  User Paid
-                </TableHead>
-
-                <TableHead className="w-[120px]">
-                  Provider Cost
-                </TableHead>
-
-                <TableHead className="w-[120px]">
-                  Status
-                </TableHead>
+              <TableRow className="grid w-full gap-4 items-center px-4" style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
+                <TableHead className="flex items-center">Time</TableHead>
+                <TableHead className="flex items-center">Transaction</TableHead>
+                <TableHead className="flex items-center">Country</TableHead>
+                <TableHead className="flex items-center">Operator</TableHead>
+                <TableHead className="flex items-center">Plan</TableHead>
+                <TableHead className="flex items-center">Type</TableHead>
+                <TableHead className="flex items-center">Strategy</TableHead>
+                <TableHead className="flex items-center">Rule Matched</TableHead>
+                <TableHead className="flex items-center">Rule Provider</TableHead>
+                <TableHead className="flex items-center">Attempts</TableHead>
+                <TableHead className="flex items-center">Provider</TableHead>
+                <TableHead className="flex items-center">User paid</TableHead>
+                <TableHead className="flex items-center">Provider cost</TableHead>
+                <TableHead className="flex items-center">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -265,195 +225,246 @@ export default function RoutingLogsPage() {
                 </TableRow>
               ) : (
                 logs.map((log) => {
-                  const isExpanded =
-                    expandedRow === log.transactionId
-                
-                  const detail = log.transactionId
-                    ? details[log.transactionId]
-                    : null
-                
-                  const isDetailLoading =
-                    log.transactionId
-                      ? detailsLoading[log.transactionId]
-                      : false
-                
-                  const strategy =
-                    log.metadata?.routingStrategy ?? '—'
-                
-                  const ruleMatched =
-                    log.metadata?.ruleMatched ?? '—'
-                
-                  const ruleProvider =
-                    log.metadata?.ruleProvider ?? '—'
-                
-                  const totalAttempts =
-                    log.metadata?.totalAttempts ??
-                    (log.fallbackUsed ? '>1' : '1')
-                
+                  const isExpanded = expandedRow === log.transactionId
+                  const detail = log.transactionId ? details[log.transactionId] : null
+                  const isDetailLoading = log.transactionId ? detailsLoading[log.transactionId] : false
+
+                  const strategy = log.metadata?.routingStrategy ?? '—'
+                  const ruleMatched = log.metadata?.ruleMatched ?? '—'
+                  const ruleProvider = log.metadata?.ruleProvider ?? '—'
+                  const totalAttempts = log.metadata?.totalAttempts ?? (log.fallbackUsed ? '> 1' : '1')
+
                   return (
-                    <Fragment key={log.id}>
-                
-                      <TableRow
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() =>
-                          toggleExpand(log.transactionId)
-                        }
-                      >
-                        <TableCell>
-                
-                          <div className="flex items-center gap-2">
-                
-                            {isExpanded ? (
-                              <ChevronDown className="size-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="size-4 text-muted-foreground" />
-                            )}
-                
-                            <span className="text-xs whitespace-nowrap">
-                
-                              {new Date(
-                                log.createdAt
-                              ).toLocaleString()}
-                
-                            </span>
-                
+                    <TableRow key={log.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                      <div className="p-0">
+                        {/* Summary Header Row */}
+                        <div
+                          className="flex items-center w-full cursor-pointer p-4 select-none hover:bg-muted/50" 
+                          onClick={() => toggleExpand(log.transactionId)}
+                        >
+                          <div className="grid w-full items-center text-sm gap-1" style={{ gridTemplateColumns: GRID_TEMPLATE_COLUMNS }}>
+                            <div className="flex items-center gap-1">
+                              {isExpanded ? <ChevronDown className="size-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="size-4 shrink-0 text-muted-foreground" />}
+                              <span>{new Date(log.createdAt).toLocaleString()}</span>
+                            </div>
+                            <TableCell className="font-mono text-xs truncate" title={log.transactionId ?? ''}>{log.transactionId ?? '—'}</TableCell>
+                            <TableCell>{log.countryId ?? '—'}</TableCell>
+                            <TableCell className="truncate" title={log.operatorId ?? ''}>{log.operatorId ?? '—'}</TableCell>
+                            <TableCell className="font-mono text-xs truncate" title={log.productId ?? ''}>{log.productId ?? '—'}</TableCell>
+                            <TableCell>
+                              <Badge variant={log.routingType === 'RULE' ? 'default' : 'secondary'}>{log.routingType}</Badge>
+                            </TableCell>
+                            <TableCell className="font-semibold text-primary">{strategy}</TableCell>
+                            <TableCell className='text-center'>
+                              <Badge variant={ruleMatched === 'Yes' ? 'default' : 'outline'}>{ruleMatched}</Badge>
+                            </TableCell>
+                            <TableCell className="truncate text-center" title={ruleProvider}>{ruleProvider}</TableCell>
+                            <TableCell className="font-semibold text-center">{totalAttempts}</TableCell>
+                            <TableCell className="text-center">{log.providerName ?? log.providerCode ?? '—'}</TableCell>
+                            <TableCell className="text-xs text-center">{formatMoney(log.userAmount, log.userCurrency)}</TableCell>
+                            <TableCell className="text-xs text-center">{formatMoney(log.providerCost, log.providerCurrency)}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                variant={
+                                  log.status === 'success' || log.status === 'completed' 
+                                    ? 'success' 
+                                    : log.status === 'failed' 
+                                      ? 'destructive' 
+                                      : 'outline'
+                                }
+                              >
+                                {log.status}
+                              </Badge>
+                            </TableCell>
                           </div>
-                
-                        </TableCell>
-                
-                        <TableCell
-                          className="font-mono text-xs truncate max-w-[220px]"
-                        >
-                          {log.transactionId ?? '—'}
-                        </TableCell>
-                
-                        <TableCell>
-                          {log.countryId ?? '—'}
-                        </TableCell>
-                
-                        <TableCell
-                          className="truncate max-w-[180px]"
-                        >
-                          {log.operatorId ?? '—'}
-                        </TableCell>
-                
-                        <TableCell
-                          className="truncate max-w-[220px] font-mono text-xs"
-                        >
-                          {log.productId ?? '—'}
-                        </TableCell>
-                
-                        <TableCell>
-                
-                          <Badge
-                            variant={
-                              log.routingType === 'RULE'
-                                ? 'default'
-                                : 'secondary'
-                            }
-                          >
-                            {log.routingType}
-                          </Badge>
-                
-                        </TableCell>
-                
-                        <TableCell className="font-semibold text-primary">
-                
-                          {strategy}
-                
-                        </TableCell>
-                
-                        <TableCell>
-                
-                          <Badge
-                            variant={
-                              ruleMatched === 'Yes'
-                                ? 'default'
-                                : 'outline'
-                            }
-                          >
-                            {ruleMatched}
-                          </Badge>
-                
-                        </TableCell>
-                
-                        <TableCell
-                          className="truncate max-w-[180px]"
-                        >
-                          {ruleProvider}
-                        </TableCell>
-                
-                        <TableCell>
-                
-                          {totalAttempts}
-                
-                        </TableCell>
-                
-                        <TableCell>
-                
-                          {log.providerName ??
-                            log.providerCode ??
-                            '—'}
-                
-                        </TableCell>
-                
-                        <TableCell>
-                
-                          {formatMoney(
-                            log.userAmount,
-                            log.userCurrency
-                          )}
-                
-                        </TableCell>
-                
-                        <TableCell>
-                
-                          {formatMoney(
-                            log.providerCost,
-                            log.providerCurrency
-                          )}
-                
-                        </TableCell>
-                
-                        <TableCell>
-                
-                          <Badge
-                            variant={
-                              log.status === 'success' ||
-                              log.status === 'completed'
-                                ? 'success'
-                                : log.status === 'failed'
-                                  ? 'destructive'
-                                  : 'outline'
-                            }
-                          >
-                
-                            {log.status}
-                
-                          </Badge>
-                
-                        </TableCell>
-                
-                      </TableRow>
-                
-                      {isExpanded && (
-                
-                        <TableRow>
-                
-                          <TableCell
-                            colSpan={14}
-                            className="bg-muted/20 p-6"
-                          >
-                
-                            {/* expanded detail section */}
-                
-                          </TableCell>
-                
-                        </TableRow>
-                
-                      )}
-                
-                    </Fragment>
+                        </div>
+
+                        {/* Expanded details container */}
+                        {isExpanded && (
+                          <div className="bg-muted/20 border-t p-6 space-y-6">
+                            {isDetailLoading ? (
+                              <div className="py-4 text-center text-sm text-muted-foreground">Loading audit details...</div>
+                            ) : !detail ? (
+                              <div className="py-4 text-center text-sm text-muted-foreground">No detailed attempts logged for this transaction.</div>
+                            ) : (
+                              <div className="space-y-6">
+                                {/* Header Summary */}
+                                <div className="grid grid-cols-2 gap-4 md:grid-cols-6 bg-card p-4 rounded-lg border text-sm shadow-sm">
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Routing Strategy</div>
+                                    <div className="font-semibold text-primary">{detail.routing_decision?.routing_strategy ?? detail.routing_decision?.routingStrategy ?? '—'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">User paid</div>
+                                    <div className="font-semibold">{formatMoney(detail.send_amount, detail.user_currency)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Provider cost</div>
+                                    <div className="font-semibold">{formatMoney(detail.provider_cost, detail.provider_currency)}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Rule Matched</div>
+                                    <div className="font-semibold">{(detail.routing_decision?.routing_rule_matched ?? detail.routing_decision?.ruleMatched) ? 'Yes' : 'No'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Rule Provider</div>
+                                    <div className="font-semibold">{detail.routing_decision?.routing_rule_provider ?? detail.routing_decision?.ruleProvider ?? '—'}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Total Attempts</div>
+                                    <div className="font-semibold">{detail.attempts?.length ?? 0}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-muted-foreground text-xs">Final Outcome</div>
+                                    <div className="font-semibold">
+                                      <Badge variant={detail.status === 'success' ? 'success' : 'destructive'}>
+                                        {detail.status === 'success' ? 'Success' : 'Failed'}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Split Details View */}
+                                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                                  
+                                  {/* Column 1: Provider Mapping Integrity Check Metrics */}
+                                  <div className="bg-card rounded-lg border p-4 shadow-sm space-y-3">
+                                    <h4 className="text-sm font-semibold border-b pb-2 text-primary">Provider Mapping Integrity Check</h4>
+                                    <div className="grid grid-cols-2 gap-4 text-xs">
+                                      <div className="col-span-2">
+                                        <div className="text-muted-foreground">Internal Plan ID</div>
+                                        <div className="font-semibold font-mono break-all">{detail.internal_plan_id ?? '—'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Mapping Count</div>
+                                        <div className="font-semibold text-sm">{detail.routing_decision?.mapping_count ?? '0'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Candidate Provider Count</div>
+                                        <div className="font-semibold text-sm">{detail.routing_decision?.candidate_provider_count ?? '0'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Eligible Provider Count</div>
+                                        <div className="font-semibold text-sm">{detail.routing_decision?.eligible_provider_count ?? '0'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-muted-foreground">Selected Provider</div>
+                                        <div className="font-semibold text-sm text-primary">{detail.routing_decision?.selected_provider ?? '—'}</div>
+                                      </div>
+                                      <div className="col-span-2">
+                                        <div className="text-muted-foreground">Routing Decision Reason</div>
+                                        <div className="font-semibold text-sm mt-1">
+                                          <Badge variant="outline">{detail.routing_decision?.routing_decision_reason ?? '—'}</Badge>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Column 2: Candidate Snapshots */}
+                                  <div className="bg-card rounded-lg border p-4 shadow-sm space-y-3">
+                                    <h4 className="text-sm font-semibold border-b pb-2 text-primary">Evaluated Providers Snapshot</h4>
+                                    <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1">
+                                      {(() => {
+                                        const evaluatedList = detail.routing_decision?.evaluated_providers ?? detail.routing_decision?.evaluatedProviders ?? []
+                                        return Array.isArray(evaluatedList) && evaluatedList.length > 0 ? (
+                                          evaluatedList.map((ev: any, idx: number) => {
+                                            const providerName = ev.providerName || ev.providerId || ev.provider || '—'
+                                            const isEligible = ev.eligibility ?? ev.eligible ?? false
+                                            const cost = ev.costPrice ?? ev.cost
+                                            const currency = ev.currency
+                                            const margin = ev.margin
+                                            const priority = ev.priority
+                                            const reason = ev.filterReason ?? ev.reason
+                                            const isSelected = ev.providerId === detail.routing_decision?.selected_provider || ev.provider === detail.routing_decision?.selected_provider || providerName === detail.routing_decision?.selected_provider
+
+                                            return (
+                                              <div 
+                                                key={idx} 
+                                                className={`flex flex-col p-3 rounded border text-xs gap-1 ${
+                                                  isSelected 
+                                                    ? 'border-primary bg-primary/5 shadow-sm' 
+                                                    : isEligible 
+                                                      ? 'bg-muted/20' 
+                                                      : 'bg-muted/10 opacity-60'
+                                                }`}
+                                              >
+                                                <div className="flex justify-between items-center">
+                                                  <span className="font-semibold text-sm">{providerName}</span>
+                                                  <div className="flex gap-2">
+                                                    {priority != null && <Badge variant="outline" className="text-[10px]">Priority {priority}</Badge>}
+                                                    <Badge variant={isEligible ? 'success' : 'destructive'} className="text-[10px]">
+                                                      {isEligible ? 'Eligible' : 'Filtered'}
+                                                    </Badge>
+                                                  </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2 mt-1 text-muted-foreground">
+                                                  <div>Cost: <span className="font-medium text-foreground">{formatMoney(cost, ev.currency)}</span></div>
+                                                  <div>Margin: <span className="font-medium text-foreground">{margin != null ? `${margin}%` : 'N/A'}</span></div>
+                                                </div>
+                                                {!isEligible && reason && (
+                                                  <div className="text-destructive mt-1 font-medium bg-destructive/5 px-1.5 py-0.5 rounded border border-destructive/10">Reason: {reason}</div>
+                                                )}
+                                              </div>
+                                            )
+                                          })
+                                        ) : (
+                                          <div className="text-center text-xs text-muted-foreground py-4">No candidates evaluated.</div>
+                                        )
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  {/* Column 3: Execution Hop Timeline */}
+                                  <div className="bg-card rounded-lg border p-4 shadow-sm space-y-3">
+                                    <h4 className="text-sm font-semibold border-b pb-2 text-primary">Attempt Timeline</h4>
+                                    <div className="relative pl-6 space-y-4 border-l border-muted max-h-[350px] overflow-y-auto pr-1">
+                                      {Array.isArray(detail.attempts) && detail.attempts.length > 0 ? (
+                                        detail.attempts.map((hop: any, idx: number) => (
+                                          <div key={idx} className="relative">
+                                            {/* Timeline bullet */}
+                                            <span className={`absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border text-[9px] font-bold ${
+                                              hop.ok 
+                                                ? 'bg-emerald-500 border-emerald-600 text-white shadow shadow-emerald-500/20' 
+                                                : 'bg-rose-500 border-rose-600 text-white shadow shadow-rose-500/20'
+                                            }`}>
+                                              {idx + 1}
+                                            </span>
+                                            <div className="space-y-1">
+                                              <div className="flex items-center justify-between">
+                                                <span className="font-semibold text-xs text-foreground">
+                                                  Attempt #{idx + 1}: {hop.providerName}
+                                                </span>
+                                                <Badge variant={hop.ok ? 'success' : 'destructive'} className="text-[10px]">
+                                                  {hop.ok ? 'Success' : 'Failed'}
+                                                </Badge>
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
+                                                <div>Source: <span className="font-medium text-foreground">{hop.source}</span></div>
+                                                <div>Cost: <span className="font-medium text-foreground">{formatMoney(hop.cost, hop.currency)}</span></div>
+                                              </div>
+                                              {!hop.ok && (
+                                                <div className="text-[10px] text-destructive bg-rose-50/50 p-2 rounded border border-rose-100 mt-1 font-mono">
+                                                  {hop.error || 'Unknown Error'}
+                                                  {hop.errorCode && <span className="block font-semibold">Error Code: {hop.errorCode}</span>}
+                                                  {hop.errorMessage && <span className="block">Message: {hop.errorMessage}</span>}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="text-center text-xs text-muted-foreground py-4">No attempts recorded yet.</div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </TableRow>
                   )
                 })
               )}

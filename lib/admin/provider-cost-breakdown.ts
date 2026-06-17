@@ -75,6 +75,8 @@ export type SystemPlanProviderCostBreakdown = {
     systemPlanCurrency: string | null
     finalSellingPrice: number | null
     status: string | null
+    description: string | null
+    validity: string | null
     providerCount: number
   }
   providers: ProviderCostBreakdownItem[]
@@ -119,7 +121,7 @@ export async function loadSystemPlanProviderCostBreakdown(
   systemPlanId: string,
 ): Promise<SystemPlanProviderCostBreakdown | null> {
   const planRes = await supabaseRest(
-    `system_plans?id=eq.${enc(systemPlanId)}&select=id,internal_plan_id,system_plan_name,amount,currency,status&limit=1`,
+    `system_plans?id=eq.${enc(systemPlanId)}&select=id,internal_plan_id,system_plan_name,description,validity,amount,currency,status&limit=1`,
     { cache: 'no-store' },
   )
   if (!planRes.ok) throw new Error(`Failed to load system plan: ${await planRes.text()}`)
@@ -128,6 +130,8 @@ export async function loadSystemPlanProviderCostBreakdown(
     id: string
     internal_plan_id?: string | null
     system_plan_name?: string
+    description?: string | null
+    validity?: string | null
     amount?: number | null
     currency?: string | null
     status?: string | null
@@ -143,6 +147,8 @@ export async function loadSystemPlanProviderCostBreakdown(
     systemPlanCurrency: plan.currency ?? null,
     finalSellingPrice: plan.amount ?? null,
     status: plan.status ?? null,
+    description: plan.description?.trim() || null,
+    validity: plan.validity?.trim() || null,
   }
 
   const planMappingsRes = await supabaseRest(
