@@ -67,6 +67,7 @@ export type RawPlanInput = {
   serviceDomain?: string | null
   serviceDomainConfidence?: number | null
   serviceDomainSource?: string | null
+  countryCode?: string | null
 }
 
 export type SystemOperatorInput = {
@@ -105,6 +106,7 @@ export type SystemPlanInput = {
   serviceDomain?: string | null
   serviceDomainConfidence?: number | null
   serviceDomainSource?: string | null
+  countryCode?: string | null
 }
 
 export type DuplicateCandidate = {

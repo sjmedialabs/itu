@@ -197,6 +197,7 @@ export async function dbUpsertAggPlans(
     operator_domain?: string | null
     operator_domain_confidence?: number | null
     domain_classification_source?: string | null
+    country_code?: string | null
   }>
 ) {
   if (!rows.length) return
@@ -244,6 +245,7 @@ export async function dbUpsertAggPlans(
         service_domain: r.service_domain ?? null,
         service_domain_confidence: r.service_domain_confidence ?? null,
         service_domain_source: r.service_domain_source ?? null,
+        country_code: r.country_code ?? 'UNK',
       }))
     ),
   })

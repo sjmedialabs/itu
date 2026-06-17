@@ -13,25 +13,16 @@ type PlanMappingRow = {
   is_verified?: boolean | null
 }
 
-type InternalMappingRow = {
-  id: string
-  provider_id: string
-  provider_plan_id: string
-  provider_price: number | null
-  provider_currency: string | null
-  provider_priority: number | null
-  margin: number | null
-  enabled: boolean | null
-}
-
 type ProviderRow = {
   id: string
   code?: string
   name?: string
+  is_active?: boolean | null
+  priority?: number | null
 }
 
 type RawPlanRow = {
-  id?: string
+  id: string
   provider_id: string
   provider_plan_id: string
   raw_json?: unknown
@@ -63,6 +54,8 @@ export type ProviderCostBreakdownItem = {
     providerPriority: number | null
     enabled: boolean
     sellingPrice: number | null
+    matchingScore: number | null
+    isVerified: boolean
   }
   rechargeCost: ProviderRechargeCost
   extractedPricing: ReturnType<typeof extractPricingFromRaw>
@@ -101,9 +94,9 @@ function sumNumbers(values: Array<number | null | undefined>): number | null {
 
 function buildRechargeCost(input: {
   extractedPricing: ReturnType<typeof extractPricingFromRaw>
-  mappingPrice: number | null
+  rawAmount: number | null
 }): ProviderRechargeCost {
-  const providerCost = input.extractedPricing.providerCost ?? input.mappingPrice ?? null
+  const providerCost = input.extractedPricing.providerCost ?? input.rawAmount ?? null
   const fees = input.extractedPricing.fee ?? null
   const gatewayCharge = input.extractedPricing.platformMarkup ?? null
   const surcharge = input.extractedPricing.markup ?? null
@@ -120,14 +113,7 @@ function buildRechargeCost(input: {
   }
 }
 
-function buildInternalMappingOrFilter(pairs: Array<{ providerId: string; providerPlanId: string }>): string | null {
-  const clauses = pairs
-    .filter((p) => p.providerId && p.providerPlanId)
-    .map((p) => `and(provider_id.eq.${enc(p.providerId)},provider_plan_id.eq.${enc(p.providerPlanId)})`)
-  if (!clauses.length) return null
-  return `or=(${clauses.join(',')})`
-}
-
+/** Provider comparison scoped strictly to plan_mappings → provider_plans_raw for one system plan. */
 export async function loadSystemPlanProviderCostBreakdown(
   systemPlanId: string,
 ): Promise<SystemPlanProviderCostBreakdown | null> {
@@ -180,64 +166,57 @@ export async function loadSystemPlanProviderCostBreakdown(
   ]
 
   const rawById = new Map<string, RawPlanRow>()
-  const rawByKey = new Map<string, RawPlanRow>()
   if (rawIds.length > 0) {
-    const rawRes = await supabaseRest(
-      `provider_plans_raw?id=in.(${rawIds.map(enc).join(',')})&select=id,provider_id,provider_plan_id,raw_json,amount,currency,provider_plan_name`,
-      { cache: 'no-store' },
-    )
-    if (rawRes.ok) {
+    for (let i = 0; i < rawIds.length; i += 100) {
+      const chunk = rawIds.slice(i, i + 100)
+      const rawRes = await supabaseRest(
+        `provider_plans_raw?id=in.(${chunk.map(enc).join(',')})&select=id,provider_id,provider_plan_id,raw_json,amount,currency,provider_plan_name`,
+        { cache: 'no-store' },
+      )
+      if (!rawRes.ok) continue
       const rawRows = (await rawRes.json()) as RawPlanRow[]
       for (const row of rawRows) {
         if (row.id) rawById.set(row.id, row)
-        rawByKey.set(`${row.provider_id}:${row.provider_plan_id}`, row)
       }
     }
   }
 
-  const resolvedMappings = planMappings
-    .map((mapping) => {
-      const rawPlan = mapping.provider_plan_raw_id ? rawById.get(mapping.provider_plan_raw_id) : undefined
-      const providerId = mapping.service_provider_id
-      const providerPlanId =
-        mapping.provider_plan_id?.trim() ||
-        rawPlan?.provider_plan_id?.trim() ||
-        ''
-      if (!providerId || !providerPlanId) return null
-      return {
-        providerId,
-        providerPlanId,
-        rawPlan: rawPlan ?? rawByKey.get(`${providerId}:${providerPlanId}`) ?? null,
-      }
-    })
-    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+  type ResolvedMapping = {
+    providerId: string
+    providerPlanId: string
+    rawPlan: RawPlanRow | null
+    matchingScore: number | null
+    isVerified: boolean
+  }
 
-  const uniquePairs = new Map<string, { providerId: string; providerPlanId: string; rawPlan: RawPlanRow | null }>()
+  const resolvedMappings: ResolvedMapping[] = []
+  for (const mapping of planMappings) {
+    const rawPlan = mapping.provider_plan_raw_id ? rawById.get(mapping.provider_plan_raw_id) ?? null : null
+    const providerId = mapping.service_provider_id
+    const providerPlanId =
+      mapping.provider_plan_id?.trim() ||
+      rawPlan?.provider_plan_id?.trim() ||
+      ''
+    if (!providerId || !providerPlanId) continue
+    resolvedMappings.push({
+      providerId,
+      providerPlanId,
+      rawPlan,
+      matchingScore: mapping.matching_score ?? null,
+      isVerified: mapping.is_verified === true,
+    })
+  }
+
+  const uniquePairs = new Map<string, ResolvedMapping>()
   for (const row of resolvedMappings) {
     uniquePairs.set(`${row.providerId}:${row.providerPlanId}`, row)
   }
 
-  const internalMap = new Map<string, InternalMappingRow>()
-  const pairList = [...uniquePairs.values()]
-  const orFilter = buildInternalMappingOrFilter(pairList)
-  if (orFilter) {
-    const internalRes = await supabaseRest(
-      `internal_plan_provider_mapping?${orFilter}&select=id,provider_id,provider_plan_id,provider_price,provider_currency,provider_priority,margin,enabled`,
-      { cache: 'no-store' },
-    )
-    if (internalRes.ok) {
-      const internalRows = (await internalRes.json()) as InternalMappingRow[]
-      for (const row of internalRows) {
-        internalMap.set(`${row.provider_id}:${row.provider_plan_id}`, row)
-      }
-    }
-  }
-
-  const providerIds = [...new Set(pairList.map((p) => p.providerId))]
+  const providerIds = [...new Set([...uniquePairs.values()].map((p) => p.providerId))]
   const providerMap = new Map<string, ProviderRow>()
   if (providerIds.length > 0) {
     const providersRes = await supabaseRest(
-      `lcr_providers?id=in.(${providerIds.map(enc).join(',')})&select=id,code,name&limit=${providerIds.length}`,
+      `lcr_providers?id=in.(${providerIds.map(enc).join(',')})&select=id,code,name,is_active,priority&limit=${providerIds.length}`,
       { cache: 'no-store' },
     )
     if (providersRes.ok) {
@@ -248,60 +227,57 @@ export async function loadSystemPlanProviderCostBreakdown(
     }
   }
 
-  const providers: ProviderCostBreakdownItem[] = pairList.map(({ providerId, providerPlanId, rawPlan }) => {
-    const internalMapping = internalMap.get(`${providerId}:${providerPlanId}`)
-    const provider = providerMap.get(providerId)
-    const rawData = rawPlan?.raw_json ?? null
-    const extractedPricing = extractPricingFromRaw(rawData)
+  const providers: ProviderCostBreakdownItem[] = [...uniquePairs.values()].map(
+    ({ providerId, providerPlanId, rawPlan, matchingScore, isVerified }) => {
+      const provider = providerMap.get(providerId)
+      const rawData = rawPlan?.raw_json ?? null
+      const extractedPricing = extractPricingFromRaw(rawData)
 
-    if (!extractedPricing.currency && internalMapping?.provider_currency) {
-      extractedPricing.currency = internalMapping.provider_currency
-    }
-    if (extractedPricing.providerCost == null && internalMapping?.provider_price != null) {
-      extractedPricing.providerCost = internalMapping.provider_price
-    }
-    if (extractedPricing.margin == null && internalMapping?.margin != null) {
-      extractedPricing.margin = internalMapping.margin
-    }
-    if (extractedPricing.basePrice == null && rawPlan?.amount != null) {
-      extractedPricing.basePrice = rawPlan.amount
-    }
-    if (!extractedPricing.currency && rawPlan?.currency) {
-      extractedPricing.currency = rawPlan.currency
-    }
+      const rawAmount = rawPlan?.amount ?? null
+      const rawCurrency = rawPlan?.currency ?? null
 
-    const mappingPrice = internalMapping?.provider_price ?? null
-    const mappingCurrency = internalMapping?.provider_currency ?? null
-    const rechargeCost = buildRechargeCost({ extractedPricing, mappingPrice })
-    const providerRechargeValue =
-      rawPlan?.amount ??
-      extractedPricing.basePrice ??
-      extractedPricing.finalPrice ??
-      mappingPrice
+      if (!extractedPricing.currency && rawCurrency) {
+        extractedPricing.currency = rawCurrency
+      }
+      if (extractedPricing.providerCost == null && rawAmount != null) {
+        extractedPricing.providerCost = rawAmount
+      }
+      if (extractedPricing.basePrice == null && rawAmount != null) {
+        extractedPricing.basePrice = rawAmount
+      }
 
-    return {
-      providerId,
-      providerName: provider?.name || provider?.code || providerId,
-      providerCode: provider?.code ?? null,
-      providerPlanId,
-      providerPlanName: rawPlan?.provider_plan_name ?? null,
-      providerRechargeValue,
-      mapping: {
-        providerPrice: mappingPrice,
-        providerCurrency: mappingCurrency,
-        margin: internalMapping?.margin ?? null,
-        providerPriority: internalMapping?.provider_priority ?? null,
-        enabled: internalMapping?.enabled !== false,
-        sellingPrice: extractedPricing.finalPrice ?? mappingPrice,
-      },
-      rechargeCost,
-      extractedPricing,
-      rawPlanAmount: rawPlan?.amount ?? null,
-      rawPlanCurrency: rawPlan?.currency ?? null,
-      rawPlanName: rawPlan?.provider_plan_name ?? null,
-      rawData,
-    }
-  })
+      const providerCurrency = rawCurrency ?? extractedPricing.currency ?? null
+      const providerPrice = extractedPricing.providerCost ?? rawAmount ?? null
+      const rechargeCost = buildRechargeCost({ extractedPricing, rawAmount })
+      const providerRechargeValue =
+        rawAmount ?? extractedPricing.basePrice ?? extractedPricing.finalPrice ?? providerPrice
+
+      return {
+        providerId,
+        providerName: provider?.name || provider?.code || providerId,
+        providerCode: provider?.code ?? null,
+        providerPlanId,
+        providerPlanName: rawPlan?.provider_plan_name ?? null,
+        providerRechargeValue,
+        mapping: {
+          providerPrice,
+          providerCurrency,
+          margin: extractedPricing.margin ?? null,
+          providerPriority: provider?.priority ?? null,
+          enabled: provider?.is_active !== false,
+          sellingPrice: extractedPricing.finalPrice ?? providerPrice,
+          matchingScore,
+          isVerified,
+        },
+        rechargeCost,
+        extractedPricing,
+        rawPlanAmount: rawAmount,
+        rawPlanCurrency: rawCurrency,
+        rawPlanName: rawPlan?.provider_plan_name ?? null,
+        rawData,
+      }
+    },
+  )
 
   providers.sort((a, b) => {
     const priorityA = a.mapping.providerPriority ?? 9999

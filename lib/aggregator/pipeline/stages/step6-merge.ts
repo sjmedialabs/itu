@@ -2,6 +2,12 @@ import { supabaseRest } from '@/lib/db/supabase-rest'
 import * as countries from 'i18n-iso-countries'
 import { shouldBlockOperatorAsNonMobile } from '@/lib/aggregator/telecom-validator'
 import { operatorMergeKey } from '@/lib/aggregator/pipeline/operator-country-strip'
+import {
+  logCrossCountrySkip,
+  planCountryMatchesOperator,
+  resolvePlanCountryCode,
+  toCanonicalPlanCountryCode,
+} from '@/lib/aggregator/plan-country-resolver'
 
 function groupHasBlockingKeyword(operators: Array<{ name: string; operator_domain?: string | null }>): boolean {
   return operators.some((op) => shouldBlockOperatorAsNonMobile(op.name, op.operator_domain))
@@ -18,6 +24,23 @@ function operatorsShareCountry(
   const countryA = operatorCountryCode(a)
   const countryB = operatorCountryCode(b)
   return countryA.length > 0 && countryA === countryB
+}
+
+function resolveAggPlanCountry(plan: {
+  country_code?: string | null
+  name?: string | null
+  description?: string | null
+  raw_response?: unknown
+}, operatorCountryIso3: string): string {
+  if (plan.country_code && String(plan.country_code).trim()) {
+    return toCanonicalPlanCountryCode(plan.country_code)
+  }
+  return resolvePlanCountryCode({
+    planName: plan.name,
+    planDescription: plan.description,
+    rawPlan: plan.raw_response,
+    operatorCountryIso3,
+  })
 }
 
 export async function runStep6Merge(
@@ -40,6 +63,7 @@ export async function runStep6Merge(
   let skippedBlocking = 0
   let skippedCrossCountry = 0
   let skippedMissingCountry = 0
+  let skippedCrossCountryPlans = 0
 
   for (const [country, opsInCountry] of countryGroups.entries()) {
     if (!country || country === 'UNK') {
@@ -80,6 +104,7 @@ export async function runStep6Merge(
       const canonical = group.reduce((prev, curr) =>
         String(prev.name).length <= String(curr.name).length ? prev : curr,
       )
+      const canonicalCountry = operatorCountryCode(canonical)
 
       for (const dup of group) {
         if (dup.id === canonical.id) continue
@@ -88,18 +113,43 @@ export async function runStep6Merge(
           continue
         }
 
-        const dupPlansRes = await supabaseRest(`agg_plans?operator_id=eq.${dup.id}&select=id`, { cache: 'no-store' })
-        const dupPlans = await dupPlansRes.json().catch(() => []) as Array<{ id: string }>
+        const dupPlansRes = await supabaseRest(
+          `agg_plans?operator_id=eq.${dup.id}&select=id,name,description,country_code,raw_response`,
+          { cache: 'no-store' },
+        )
+        const dupPlans = await dupPlansRes.json().catch(() => []) as Array<{
+          id: string
+          name?: string | null
+          description?: string | null
+          country_code?: string | null
+          raw_response?: unknown
+        }>
 
-        await supabaseRest(`agg_plans?operator_id=eq.${dup.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            operator_id: canonical.id,
-            status: canonical.status || 'active',
-          }),
-        }).catch(() => {})
+        for (const dupPlan of dupPlans) {
+          const planCountry = resolveAggPlanCountry(dupPlan, operatorCountryCode(dup))
+          if (!planCountryMatchesOperator(planCountry, canonicalCountry)) {
+            skippedCrossCountryPlans++
+            logCrossCountrySkip('Step6', {
+              planId: dupPlan.id,
+              planName: dupPlan.name ?? undefined,
+              planCountry,
+              operatorName: canonical.name,
+              operatorCountry: canonicalCountry,
+              action: 'operator merge plan reassignment',
+            })
+            continue
+          }
 
-        plansReassigned += dupPlans.length
+          await supabaseRest(`agg_plans?id=eq.${dupPlan.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              operator_id: canonical.id,
+              status: canonical.status || 'active',
+            }),
+          }).catch(() => {})
+          plansReassigned++
+        }
+
         totalMerged++
 
         await supabaseRest(`agg_operators?id=eq.${dup.id}`, {
@@ -120,10 +170,11 @@ export async function runStep6Merge(
 
   return {
     success: true,
-    message: `Step 6 complete. Merged ${totalMerged} duplicate operators (${plansReassigned} plans reassigned); skipped ${skippedBlocking} groups with blocking keywords; skipped ${skippedCrossCountry} cross-country mismatches.`,
+    message: `Step 6 complete. Merged ${totalMerged} duplicate operators (${plansReassigned} plans reassigned, ${skippedCrossCountryPlans} plan reassignments blocked); skipped ${skippedBlocking} groups with blocking keywords; skipped ${skippedCrossCountry} cross-country mismatches.`,
     data: {
       merged: totalMerged,
       plansReassigned,
+      skippedCrossCountryPlans,
       skippedBlocking,
       skippedCrossCountry,
       skippedMissingCountry,
