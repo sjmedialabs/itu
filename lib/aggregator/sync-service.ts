@@ -69,7 +69,7 @@ import {
   aggUpsertSystemPlan,
   aggUpsertFilteredOperator,
   aggCleanupSystemOperatorsWithoutPlans,
-  aggMergeDuplicateSystemOperators,
+  aggMergeDuplicateSystemPlansForProvider,
   aggStartSyncRun,
   aggUpdateSyncRun,
   aggInsertClassificationAudit,
@@ -800,6 +800,7 @@ export async function syncAggregatorProvider(
           const planMap = await aggUpsertPlanMapping({
             serviceProviderId: providerId,
             providerPlanRawId: rawPlan.id,
+            providerPlanId: plan.providerPlanId,
             systemPlanId: systemPlan.id,
             matchingScore: 95,
             matchingReason: 'Automatic normalized signature match',
@@ -807,12 +808,6 @@ export async function syncAggregatorProvider(
           })
 
           if (planMap?.id) {
-            // Update provider_plan_id on the mapping row
-            await supabaseRest(`plan_mappings?id=eq.${planMap.id}`, {
-              method: 'PATCH',
-              body: JSON.stringify({ provider_plan_id: plan.providerPlanId }),
-            }).catch(() => {})
-
             mappedPlans += 1
           }
 
@@ -867,11 +862,11 @@ export async function syncAggregatorProvider(
       console.error('Failed to cleanup operators without plans:', cleanupErr)
     }
 
-    // Merge duplicate system operators
+    // Merge duplicate system plans by signature for this provider
     try {
-      await aggMergeDuplicateSystemOperators('system-sync')
+      await aggMergeDuplicateSystemPlansForProvider(providerId, 'system-sync')
     } catch (mergeErr) {
-      console.error('Failed to merge duplicate system operators:', mergeErr)
+      console.error('Failed to merge duplicate system plans:', mergeErr)
     }
 
     const durationMs = Date.now() - started
@@ -1092,6 +1087,7 @@ export async function runLocalOperatorSync(providerId?: string) {
                 await aggUpsertPlanMapping({
                   serviceProviderId: provider.id,
                   providerPlanRawId: rawPlan.id,
+                  providerPlanId: String(rawPlan.provider_plan_id ?? planForInternal.providerPlanId ?? ''),
                   systemPlanId: systemPlan.id,
                   matchingScore: 100,
                   matchingReason: 'Local operator sync',

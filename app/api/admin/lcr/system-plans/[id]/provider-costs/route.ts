@@ -20,7 +20,11 @@ export async function GET(request: Request, context: RouteContext) {
     if (!breakdown) {
       return NextResponse.json({ error: 'System plan not found' }, { status: 404 })
     }
-    return NextResponse.json({ breakdown })
+    return NextResponse.json({
+      breakdown,
+      plan: breakdown.plan,
+      providers: breakdown.providers,
+    })
   } catch (error) {
     console.error('Failed to load provider cost breakdown:', error)
     return NextResponse.json(

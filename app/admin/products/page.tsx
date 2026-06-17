@@ -35,6 +35,7 @@ type ProductPlan = {
   operator_name: string
   category: string
   active: boolean
+  provider_count?: number
 }
 
 type CountryOption = {
@@ -136,6 +137,19 @@ function buildQuery(params: Record<string, string | undefined>) {
   }
   q.set('limit', '500')
   return `?${q.toString()}`
+}
+
+function sumProviderFees(rechargeCost: {
+  fees: number | null
+  gatewayCharge: number | null
+  surcharge: number | null
+  tax: number | null
+}): number | null {
+  const parts = [rechargeCost.fees, rechargeCost.gatewayCharge, rechargeCost.surcharge, rechargeCost.tax].filter(
+    (v): v is number => v != null && Number.isFinite(v),
+  )
+  if (parts.length === 0) return null
+  return parts.reduce((sum, n) => sum + n, 0)
 }
 
 
@@ -455,6 +469,7 @@ export default function AdminProductsPage() {
                 <TableHead className="w-[28%]">Plan name</TableHead>
                 <TableHead className="w-[12%]">Country</TableHead>
                 <TableHead className="w-[24%]">Operator name</TableHead>
+                <TableHead className="w-[10%]">Providers</TableHead>
                 <TableHead className="w-[12%]">Category</TableHead>
                 <TableHead className="w-[12%]">Status</TableHead>
                 <TableHead className="w-[12%] text-right">Action</TableHead>
@@ -489,6 +504,7 @@ export default function AdminProductsPage() {
                     className="h-8 text-xs font-normal"
                   />
                 </TableHead>
+                <TableHead className="py-2"></TableHead>
                 <TableHead className="py-2 font-normal normal-case">
                   <ComboFilter
                     value={categoryFilter}
@@ -516,13 +532,13 @@ export default function AdminProductsPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                     Loading products…
                   </TableCell>
                 </TableRow>
               ) : sortedPlans.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                     No products match your filters. Sync providers to ingest plans from more countries.
                   </TableCell>
                 </TableRow>
@@ -559,6 +575,9 @@ export default function AdminProductsPage() {
                       )}
                     </TableCell>
                     <TableCell>{plan.operator_name || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{plan.provider_count ?? 0}</Badge>
+                    </TableCell>
                     <TableCell className="capitalize">{plan.category || '—'}</TableCell>
                     <TableCell>
                       <Badge variant={plan.active ? 'default' : 'secondary'}>
@@ -713,18 +732,18 @@ export default function AdminProductsPage() {
       </Dialog>
 
       <Dialog open={costDialogOpen} onOpenChange={setCostDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Provider Cost Breakdown</DialogTitle>
+            <DialogTitle>Provider Comparison</DialogTitle>
             <DialogDescription>
-              Pricing from all providers mapped to this system plan.
+              Provider pricing for the selected plan only.
             </DialogDescription>
           </DialogHeader>
 
           {costLoading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading provider pricing…
+              Loading provider comparison…
             </div>
           ) : costError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -733,24 +752,28 @@ export default function AdminProductsPage() {
           ) : costBreakdown ? (
             <div className="space-y-4">
               <div className="rounded-md border bg-muted/30 p-4 space-y-1">
-                <p className="font-semibold">{costBreakdown.systemPlanName}</p>
-                <p className="text-xs text-muted-foreground">System plan ID: {costBreakdown.systemPlanId}</p>
-                {costBreakdown.internalPlanId ? (
-                  <p className="text-xs text-muted-foreground">Internal plan ID: {costBreakdown.internalPlanId}</p>
-                ) : (
-                  <p className="text-xs text-amber-700">No internal plan linked — provider mappings unavailable.</p>
-                )}
+                <p className="font-semibold">{costBreakdown.plan?.systemPlanName ?? costBreakdown.systemPlanName}</p>
+                <p className="text-xs text-muted-foreground">
+                  System plan ID: {costBreakdown.plan?.systemPlanId ?? costBreakdown.systemPlanId}
+                </p>
                 <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                   <div>
                     <span className="text-muted-foreground">System plan price: </span>
                     <span className="font-medium">
-                      {formatMoney(costBreakdown.systemPlanPrice, costBreakdown.systemPlanCurrency)}
+                      {formatMoney(
+                        costBreakdown.plan?.systemPlanPrice ?? costBreakdown.systemPlanPrice,
+                        costBreakdown.plan?.systemPlanCurrency ?? costBreakdown.systemPlanCurrency,
+                      )}
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Final selling price: </span>
+                    <span className="text-muted-foreground">Status: </span>
+                    <span className="font-medium">{costBreakdown.plan?.status ?? '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Providers: </span>
                     <span className="font-medium">
-                      {formatMoney(costBreakdown.finalSellingPrice, costBreakdown.systemPlanCurrency)}
+                      {costBreakdown.plan?.providerCount ?? costBreakdown.providers.length}
                     </span>
                   </div>
                 </div>
@@ -758,71 +781,95 @@ export default function AdminProductsPage() {
 
               {costBreakdown.providers.length === 0 ? (
                 <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No provider mappings found for this plan.
+                  No provider plan mappings found for this system plan.
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {costBreakdown.providers.map((provider) => {
-                    const currency =
-                      provider.extractedPricing.currency ||
-                      provider.mapping.providerCurrency ||
-                      provider.rawPlanCurrency ||
-                      costBreakdown.systemPlanCurrency
-                    const pricing = provider.extractedPricing
-                    return (
-                      <div key={`${provider.providerId}:${provider.providerPlanId}`} className="rounded-md border p-4 space-y-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold">{provider.providerName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              Provider ID: {provider.providerId}
-                              {provider.providerCode ? ` · ${provider.providerCode}` : ''}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Provider plan ID: {provider.providerPlanId}</p>
-                            {provider.rawPlanName ? (
-                              <p className="text-xs text-muted-foreground">Raw plan: {provider.rawPlanName}</p>
-                            ) : null}
-                          </div>
-                          <Badge variant={provider.mapping.enabled ? 'default' : 'secondary'}>
-                            {provider.mapping.enabled ? 'Enabled' : 'Disabled'}
-                          </Badge>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                          <div><span className="text-muted-foreground">Base price: </span>{formatMoney(pricing.basePrice ?? provider.rawPlanAmount, currency)}</div>
-                          <div><span className="text-muted-foreground">Provider cost: </span>{formatMoney(pricing.providerCost ?? provider.mapping.providerPrice, currency)}</div>
-                          <div><span className="text-muted-foreground">Markup: </span>{formatMoney(pricing.markup, currency)}</div>
-                          <div><span className="text-muted-foreground">Platform markup: </span>{formatMoney(pricing.platformMarkup, currency)}</div>
-                          <div><span className="text-muted-foreground">Fee: </span>{formatMoney(pricing.fee, currency)}</div>
-                          <div><span className="text-muted-foreground">Commission: </span>{formatMoney(pricing.commission, currency)}</div>
-                          <div><span className="text-muted-foreground">Margin: </span>{formatMoney(pricing.margin ?? provider.mapping.margin, currency)}</div>
-                          <div><span className="text-muted-foreground">Tax: </span>{formatMoney(pricing.tax, currency)}</div>
-                          <div><span className="text-muted-foreground">Currency: </span>{currency || '—'}</div>
-                          <div><span className="text-muted-foreground">Final price: </span>{formatMoney(pricing.finalPrice, currency)}</div>
-                          <div><span className="text-muted-foreground">Mapping price: </span>{formatMoney(provider.mapping.providerPrice, provider.mapping.providerCurrency)}</div>
-                          <div><span className="text-muted-foreground">Priority: </span>{provider.mapping.providerPriority ?? '—'}</div>
-                        </div>
-
-                        {provider.rawData ? (
-                          <Collapsible>
-                            <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
-                              <ChevronDown className="h-3 w-3" />
-                              View raw provider data
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted p-3 text-[10px] leading-relaxed">
-                                {JSON.stringify(provider.rawData, null, 2)}
-                              </pre>
-                            </CollapsibleContent>
-                          </Collapsible>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No raw provider JSON stored for this mapping.</p>
-                        )}
-                      </div>
-                    )
-                  })}
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Provider</TableHead>
+                        <TableHead>Provider Plan Name</TableHead>
+                        <TableHead className="text-right">Recharge Value</TableHead>
+                        <TableHead className="text-right">Provider Cost</TableHead>
+                        <TableHead className="text-right">Fees</TableHead>
+                        <TableHead className="text-right">Tax</TableHead>
+                        <TableHead className="text-right">Recharge Cost</TableHead>
+                        <TableHead>Enabled</TableHead>
+                        <TableHead className="text-right">Priority</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {costBreakdown.providers.map((provider) => {
+                        const currency =
+                          provider.extractedPricing.currency ||
+                          provider.mapping.providerCurrency ||
+                          provider.rawPlanCurrency ||
+                          costBreakdown.plan?.systemPlanCurrency ||
+                          costBreakdown.systemPlanCurrency
+                        return (
+                          <TableRow key={`${provider.providerId}:${provider.providerPlanId}`}>
+                            <TableCell>
+                              <div className="font-medium">{provider.providerName}</div>
+                              <div className="text-xs text-muted-foreground">{provider.providerPlanId}</div>
+                            </TableCell>
+                            <TableCell>{provider.providerPlanName || provider.rawPlanName || '—'}</TableCell>
+                            <TableCell className="text-right">
+                              {formatMoney(provider.providerRechargeValue, currency)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatMoney(provider.rechargeCost.providerCost, currency)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatMoney(
+                                sumProviderFees(provider.rechargeCost),
+                                currency,
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatMoney(provider.rechargeCost.tax, currency)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatMoney(provider.rechargeCost.totalRechargeCost, currency)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={provider.mapping.enabled ? 'default' : 'secondary'}>
+                                {provider.mapping.enabled ? 'Yes' : 'No'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {provider.mapping.providerPriority ?? '—'}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
+
+              {costBreakdown.providers.some((p) => p.rawData) ? (
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+                    <ChevronDown className="h-3 w-3" />
+                    View raw provider payloads
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 pt-2">
+                    {costBreakdown.providers.map((provider) =>
+                      provider.rawData ? (
+                        <div key={`raw-${provider.providerId}:${provider.providerPlanId}`} className="rounded-md border p-3">
+                          <p className="text-xs font-semibold mb-2">
+                            {provider.providerName} · {provider.providerPlanName || provider.providerPlanId}
+                          </p>
+                          <pre className="max-h-40 overflow-auto rounded-md bg-muted p-3 text-[10px] leading-relaxed">
+                            {JSON.stringify(provider.rawData, null, 2)}
+                          </pre>
+                        </div>
+                      ) : null,
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+              ) : null}
             </div>
           ) : null}
 
