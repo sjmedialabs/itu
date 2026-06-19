@@ -37,7 +37,7 @@ export type Step7SyncHealth = {
 }
 
 const RAW_PLAN_SELECT =
-  'id,provider_id,provider_plan_id,amount,currency,destination_amount,destination_currency,raw_json,provider_plan_name'
+  'id,provider_id,provider_plan_id,amount,currency,destination_amount,destination_currency,raw_json,provider_plan_name,fetched_at'
 
 async function fetchAllPaginated<T>(buildUrl: (offset: number, limit: number) => string): Promise<T[]> {
   const limit = 1000
