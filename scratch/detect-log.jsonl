@@ -275,3 +275,7 @@
 {"time":"2026-06-22T05:19:57.511Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
 {"time":"2026-06-22T05:19:57.951Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
 {"time":"2026-06-22T05:19:58.007Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
+{"time":"2026-06-22T06:27:20.208Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T06:27:20.219Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T06:27:21.000Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-22T06:27:21.195Z","event":"dtone_error","error":"DTONE API Error: 401"}
