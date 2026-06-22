@@ -205,20 +205,19 @@ export default function PublicLayout({
   }, [])
 
   useEffect(() => {
-    if (countries.length > 0 && !countries.some((c) => c.code === regionCode)) {
+    if (countries.length > 0 && !regionCode) {
       setRegion(countries[0]!.code)
     }
   }, [countries, regionCode, setRegion])
 
   useEffect(() => {
-    const valid = content.header.languages.some((l) => l.code === languageCode)
-    if (!valid && content.header.languages[0]) {
+    if (!languageCode && content.header.languages[0]) {
       setLanguage(content.header.languages[0].code)
     }
   }, [languageCode, content.header.languages, setLanguage])
 
   useEffect(() => {
-    if (!isNavCurrency(currencyCode)) {
+    if (!currencyCode) {
       setCurrency('USD')
     }
   }, [currencyCode, setCurrency])

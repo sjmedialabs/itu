@@ -247,3 +247,31 @@
 {"time":"2026-06-19T12:58:22.827Z","event":"dtone_error","error":"DTONE API Error: 401"}
 {"time":"2026-06-19T12:58:35.170Z","event":"local_db_result","result":{"operator":"Unknown","country":"DZ","source":"database"}}
 {"time":"2026-06-19T12:58:36.099Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-22T04:59:17.160Z","event":"local_db_result","result":{"operator":"Unknown","country":"DZ","source":"database"}}
+{"time":"2026-06-22T04:59:17.214Z","event":"local_db_result","result":{"operator":"Unknown","country":"DZ","source":"database"}}
+{"time":"2026-06-22T04:59:19.968Z","event":"dtone_error","error":"fetch failed"}
+{"time":"2026-06-22T04:59:20.593Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-22T04:59:41.539Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T04:59:42.026Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918889907656","Items":[],"ResultCode":2,"ErrorCodes":[{"Code":"NearestMatch"}]}}
+{"time":"2026-06-22T04:59:42.245Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-22T04:59:51.166Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T04:59:51.757Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-22T04:59:52.202Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
+{"time":"2026-06-22T05:01:27.450Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T05:01:28.071Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-22T05:01:28.710Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
+{"time":"2026-06-22T05:16:59.514Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T05:16:59.525Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T05:17:00.338Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-22T05:17:00.605Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-22T05:17:00.707Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
+{"time":"2026-06-22T05:17:00.988Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
+{"time":"2026-06-22T05:17:10.444Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T05:17:10.700Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-22T05:17:11.039Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
+{"time":"2026-06-22T05:19:57.069Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T05:19:57.089Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-22T05:19:57.428Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-22T05:19:57.511Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-22T05:19:57.951Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
+{"time":"2026-06-22T05:19:58.007Z","event":"ding_match","matchedOperator":{"id":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","code":"375c6bd5-e5f9-4f08-ac52-ff2711c849f9","name":"Vodafone IND","shortName":"Vodafone IND","countryCode":"IND2","countryIso3":"IND","logo":null}}
