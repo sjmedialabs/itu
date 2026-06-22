@@ -13,6 +13,62 @@ Ensure you have the following installed on your machine:
 
 ---
 
+## 🐘 Local Supabase (Docker)
+
+This project uses the [Supabase CLI](https://supabase.com/docs/guides/cli) to run a full local stack in Docker (Postgres, PostgREST, Auth, Studio).
+
+### Prerequisites
+- **Docker Desktop** running (Windows: ensure WSL2 backend is healthy)
+- **Node.js** v18+
+
+### One-time setup
+
+```bash
+npm install
+cp .env.example .env
+npm run db:local
+```
+
+`db:local` runs: `supabase:start` → `db:bootstrap` (legacy SQL) → `db:migrate` → `supabase:sync-env` (writes API URL + keys into `.env`).
+
+### Daily development
+
+```bash
+# Terminal 1 — Supabase + Redis
+npm run dev:stack
+
+# Terminal 2 — Next.js
+npm run dev
+
+# Optional: create super admin
+npm run bootstrap:admin
+```
+
+### Useful URLs (local)
+
+| Service | URL |
+|---------|-----|
+| Supabase Studio | http://127.0.0.1:54423 |
+| API / PostgREST | http://127.0.0.1:54421 |
+| Postgres | `127.0.0.1:54422` (user `postgres`, password `postgres`) |
+| Mailpit (test email) | http://127.0.0.1:54424 |
+
+> **Windows port note:** Default Supabase ports (54321–54324) fall inside Hyper-V reserved ranges on some machines. This repo maps to **54420+** in `supabase/config.toml`.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run supabase:start` | Start local Supabase containers |
+| `npm run supabase:stop` | Stop local Supabase |
+| `npm run supabase:status` | Show URLs and keys |
+| `npm run supabase:sync-env` | Update `.env` from running instance |
+| `npm run db:bootstrap` | Apply legacy `supabase/*.sql` schemas |
+| `npm run db:migrate` | Apply `supabase/migrations/` |
+| `npm run supabase:reset` | Wipe DB and re-seed (then re-run bootstrap + migrate) |
+
+---
+
 ## 🚀 Local Development Setup
 
 ### 1. Install Dependencies

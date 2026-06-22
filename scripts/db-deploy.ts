@@ -34,7 +34,7 @@ async function main() {
   const args = process.argv.slice(2)
   const isDryRun = args.includes('--dry-run')
 
-  const cmdArgs = ['exec', 'supabase', 'db', 'push', '--db-url', dbUrl]
+  const cmdArgs = ['supabase', 'db', 'push', '--db-url', dbUrl]
   if (isDryRun) {
     cmdArgs.push('--dry-run')
     console.log('Performing remote migration dry-run...')
@@ -42,7 +42,7 @@ async function main() {
     console.log('Deploying migrations to remote database...')
   }
 
-  const result = spawnSync('pnpm', cmdArgs, {
+  const result = spawnSync('npx', cmdArgs, {
     stdio: 'inherit',
     shell: true,
   })
