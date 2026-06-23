@@ -34,7 +34,7 @@ export interface Wallet {
 export interface Transaction {
   id: string
   userId: string
-  type: 'topup' | 'recharge' | 'refund' | 'commission' | 'points_earned' | 'points_redeemed'
+  type: 'topup' | 'recharge' | 'refund' | 'commission' | 'points_earned' | 'points_redeemed' | 'payment'
   amount: number
   currency: string
   status: 'pending' | 'processing' | 'completed' | 'failed'

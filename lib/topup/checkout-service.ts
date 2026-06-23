@@ -31,6 +31,9 @@ export type CheckoutInput = {
   currency: string
   razorpayPaymentId: string
   userId?: string
+  hideTransactionFromUser?: boolean
+  usedWalletBalance?: number
+  walletCurrency?: string
 }
 
 export type CheckoutResult = {
@@ -76,6 +79,9 @@ async function createTransaction(input: CheckoutInput): Promise<string | null> {
           country_id: input.countryId,
           payment_order_id: input.paymentOrderId,
           razorpay_payment_id: input.razorpayPaymentId,
+          hide_from_user: input.hideTransactionFromUser || undefined,
+          used_wallet_balance: input.usedWalletBalance || undefined,
+          wallet_currency: input.walletCurrency || undefined,
         },
       },
     ]),

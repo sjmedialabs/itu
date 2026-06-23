@@ -22,14 +22,14 @@ function loadEnv() {
 
 loadEnv()
 
-async function test() {
-  console.log('Querying system_operators statuses, domains, and types...')
-  const res = await supabaseRest('system_operators?select=id,system_operator_name,status,operator_type,service_domain,operator_domain&limit=10', { cache: 'no-store' })
-  if (res.ok) {
-    const data = await res.json()
-    console.log('System Operators status details:')
-    console.table(data)
+async function check() {
+  console.log('=== CHECKING WALLET LEDGER ===')
+  const res = await supabaseRest('wallet_ledger?select=*&order=created_at.desc')
+  const ledger = await res.json() as any[]
+  console.log(`Total ledger entries: ${ledger.length}`)
+  for (const l of ledger) {
+    console.log(`ID: ${l.id} | Wallet ID: ${l.wallet_id} | Tx ID: ${l.transaction_id} | Direction: ${l.direction} | Amount: ${l.amount} ${l.currency} | Balance After: ${l.balance_after} | Reason: ${l.reason}`)
   }
 }
 
-test()
+check().catch(console.error)

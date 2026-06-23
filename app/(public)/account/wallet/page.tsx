@@ -72,6 +72,7 @@ export default function AccountWalletPage() {
       case 'topup':
         return <Plus className="h-4 w-4 text-emerald-600" />
       case 'recharge':
+      case 'payment':
         return <ArrowUpRight className="h-4 w-4 text-blue-600" />
       case 'refund':
         return <ArrowDownLeft className="h-4 w-4 text-emerald-600" />
@@ -86,6 +87,8 @@ export default function AccountWalletPage() {
         return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Top-up</Badge>
       case 'recharge':
         return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Recharge</Badge>
+      case 'payment':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Payment</Badge>
       case 'refund':
         return <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Refund</Badge>
       case 'commission':
@@ -102,6 +105,7 @@ export default function AccountWalletPage() {
       case 'commission':
         return 'text-emerald-600'
       case 'recharge':
+      case 'payment':
         return 'text-red-600'
       default:
         return ''
@@ -115,6 +119,7 @@ export default function AccountWalletPage() {
       case 'commission':
         return '+'
       case 'recharge':
+      case 'payment':
         return '-'
       default:
         return ''
@@ -125,12 +130,12 @@ export default function AccountWalletPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">My Wallet</h1>
-        <p className="text-muted-foreground">Manage your wallet balance and top up funds</p>
+        <p className="text-muted-foreground">View your wallet balance and refund history</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         {/* Wallet Balance Card */}
-        <Card className="md:col-span-2 bg-gradient-to-br from-neutral-900 to-neutral-800 text-white overflow-hidden rounded-2xl shadow-lg border-none">
+        <Card className="md:col-span-3 bg-gradient-to-br from-neutral-900 to-neutral-800 text-white overflow-hidden rounded-2xl shadow-lg border-none">
           <CardContent className="p-6 flex flex-col justify-between h-full min-h-[200px]">
             <div className="flex items-start justify-between">
               <div>
@@ -146,47 +151,6 @@ export default function AccountWalletPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Quick Stats */}
-        <div className="flex flex-col gap-4">
-          <Card className="rounded-2xl border-neutral-200/60 shadow-sm">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <ArrowDownLeft className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Top-Ups</p>
-                <p className="text-xl font-bold text-neutral-950">
-                  {(() => {
-                    const topUpTxns = transactions.filter((t) => t.type === 'topup')
-                    const total = topUpTxns.reduce((acc, t) => acc + t.amount, 0)
-                    const topUpCurrency = topUpTxns.length > 0 ? topUpTxns[0].currency : currency
-                    return formatCurrency(total, topUpCurrency)
-                  })()}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="rounded-2xl border-neutral-200/60 shadow-sm">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-                <ArrowUpRight className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Spent</p>
-                <p className="text-xl font-bold text-neutral-950">
-                  {(() => {
-                    const rechargeTxns = transactions.filter((t) => t.type === 'recharge')
-                    const total = rechargeTxns.reduce((acc, t) => acc + t.amount, 0)
-                    const spentCurrency = rechargeTxns.length > 0 ? rechargeTxns[0].currency : currency
-                    return formatCurrency(total, spentCurrency)
-                  })()}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -275,8 +239,8 @@ export default function AccountWalletPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg font-bold">Transaction History</CardTitle>
-                <CardDescription>Records of your top-ups and spending</CardDescription>
+                <CardTitle className="text-lg font-bold">Refund History</CardTitle>
+                <CardDescription>Records of your refunded transactions</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -292,14 +256,18 @@ export default function AccountWalletPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-neutral-400">
-                        No transactions found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    transactions.map((t) => (
+                  {(() => {
+                    const refundTxns = transactions.filter((t) => t.type === 'refund')
+                    if (refundTxns.length === 0) {
+                      return (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-8 text-neutral-400">
+                            No refunds found.
+                          </TableCell>
+                        </TableRow>
+                      )
+                    }
+                    return refundTxns.map((t) => (
                       <TableRow key={t.id} className="hover:bg-neutral-50/40">
                         <TableCell className="pl-6 py-3.5">
                           <div className="flex items-center gap-2">
@@ -321,7 +289,7 @@ export default function AccountWalletPage() {
                         </TableCell>
                       </TableRow>
                     ))
-                  )}
+                  })()}
                 </TableBody>
               </Table>
             </div>

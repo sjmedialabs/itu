@@ -5,7 +5,9 @@ export function isMobileCatalogOperator(row: {
   service_domain?: string | null
 }): boolean {
   if (String(row.status ?? 'ACTIVE').toUpperCase() !== 'ACTIVE') return false
-  return isMobileTelecomDomain(row.service_domain)
+  const domain = String(row.service_domain ?? '').trim().toUpperCase()
+  if (!domain || domain === 'UNKNOWN') return true
+  return isMobileTelecomDomain(domain)
 }
 
 export function isMobileCatalogPlan(row: {

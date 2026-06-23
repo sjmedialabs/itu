@@ -72,20 +72,85 @@ export async function POST(request: Request) {
       const razorpayAmount = Number(po.amount ?? 0)
       const fullAmount = razorpayAmount + usedWalletBalance
 
+      const walletCurrency = metadata.wallet_currency ? String(metadata.wallet_currency).toUpperCase() : String(po.currency ?? 'INR')
+
       // If logged in, credit the Razorpay amount to the user's wallet as a topup
       if (po.user_id) {
-        await supabaseRest('transactions', {
-          method: 'POST',
-          headers: { Prefer: 'return=minimal' },
-          body: JSON.stringify([{
-            user_id: po.user_id,
-            type: 'topup',
-            amount: razorpayAmount,
-            currency: String(po.currency ?? 'INR'),
-            status: 'completed',
-            description: `Payment for order ${po.id}`
-          }]),
-        })
+        if (usedWalletBalance > 0) {
+          if (walletCurrency !== String(po.currency ?? 'INR')) {
+            let walletDeductionAmt = usedWalletBalance
+            const rateRes = await fetch('https://open.er-api.com/v6/latest/EUR', { cache: 'no-store' }).catch(() => null)
+            if (rateRes?.ok) {
+              const data = await rateRes.json()
+              const rates = data?.rates
+              const payCurrency = String(po.currency ?? 'INR')
+              if (rates && rates[payCurrency] && rates[walletCurrency]) {
+                const rateToEUR = 1 / rates[payCurrency]
+                const rateFromEUR = rates[walletCurrency]
+                walletDeductionAmt = usedWalletBalance * rateToEUR * rateFromEUR
+              }
+            }
+
+            // Debit from the walletCurrency wallet
+            await supabaseRest('transactions', {
+              method: 'POST',
+              body: JSON.stringify([{
+                user_id: po.user_id,
+                type: 'payment',
+                amount: walletDeductionAmt,
+                currency: walletCurrency,
+                status: 'completed',
+                description: `Recharge ${po.mobile_number}`,
+                metadata: {
+                  plan_id: po.plan_id,
+                  mobile_number: po.mobile_number,
+                  operator_id: po.operator_id,
+                  country_id: po.country_id,
+                  payment_order_id: po.id,
+                  razorpay_payment_id: razorpay_payment_id,
+                }
+              }])
+            }).catch((err) => console.error('Failed to insert exchange debit transaction:', err))
+
+            // Credit to the payment currency wallet
+            await supabaseRest('transactions', {
+              method: 'POST',
+              body: JSON.stringify([{
+                user_id: po.user_id,
+                type: 'topup',
+                amount: usedWalletBalance,
+                currency: String(po.currency ?? 'INR'),
+                status: 'completed',
+                description: `Exchange credit from ${walletCurrency} wallet for order ${po.id}`,
+                metadata: {
+                  hide_from_user: true,
+                }
+              }])
+            }).catch((err) => console.error('Failed to insert exchange credit transaction:', err))
+          } else {
+            // Debit from the walletCurrency wallet immediately for same currency
+            await supabaseRest('transactions', {
+              method: 'POST',
+              body: JSON.stringify([{
+                user_id: po.user_id,
+                type: 'payment',
+                amount: usedWalletBalance,
+                currency: walletCurrency,
+                status: 'completed',
+                description: `Recharge ${po.mobile_number}`,
+                metadata: {
+                  plan_id: po.plan_id,
+                  mobile_number: po.mobile_number,
+                  operator_id: po.operator_id,
+                  country_id: po.country_id,
+                  payment_order_id: po.id,
+                  razorpay_payment_id: razorpay_payment_id,
+                  hide_from_user: true,
+                }
+              }])
+            }).catch((err) => console.error('Failed to insert same-currency wallet deduction:', err))
+          }
+        }
       }
 
       // Execute full checkout: transaction → routing → provider → recharge
@@ -99,6 +164,8 @@ export async function POST(request: Request) {
         currency: String(po.currency ?? 'INR'),
         razorpayPaymentId: razorpay_payment_id,
         userId: po.user_id ? String(po.user_id) : undefined,
+        usedWalletBalance,
+        walletCurrency,
       })
 
       return NextResponse.json({

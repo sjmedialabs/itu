@@ -182,6 +182,7 @@ export default function TransactionsPage() {
       case 'refund':
         return <ArrowDownRight className="h-4 w-4 text-emerald-600" />
       case 'recharge':
+      case 'payment':
         return <ArrowUpRight className="h-4 w-4 text-primary" />
       default:
         return null
@@ -227,7 +228,7 @@ export default function TransactionsPage() {
       destinationCountry,
       networkOperator,
       mobileNumber: txn.metadata?.mobile_number || txn.metadata?.phoneNumber || '—',
-      paymentMethod: txn.type === 'topup' ? 'Card/Wallet' : 'Wallet',
+      paymentMethod: (txn.metadata as any)?.razorpay_payment_id && (txn.metadata as any).razorpay_payment_id !== 'wallet' ? 'Card' : 'Wallet',
       paymentStatus: ((txn.metadata as any)?.razorpay_payment_id || (txn.metadata as any)?.payment_order_id) ? 'completed' : txn.status,
       paymentReferenceId: (txn.metadata as any)?.razorpay_payment_id || txn.metadata?.providerRef || txn.metadata?.orderId || txn.id,
       gatewayResponse: ((txn.metadata as any)?.razorpay_payment_id || (txn.metadata as any)?.payment_order_id) ? 'Approved' : (txn.status === 'failed' ? txn.description : 'Approved'),
@@ -424,6 +425,7 @@ export default function TransactionsPage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 <SelectItem value="recharge">Recharge</SelectItem>
+                <SelectItem value="payment">Payment</SelectItem>
                 <SelectItem value="topup">Wallet Top-up</SelectItem>
                 <SelectItem value="refund">Refund</SelectItem>
                 <SelectItem value="points_earned">Points Earned</SelectItem>

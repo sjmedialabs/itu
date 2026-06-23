@@ -34,14 +34,14 @@ export async function POST(request: Request) {
       }
     }
 
-    // Enforce max consumption limit
-    const maxAllowed = amount * (maxConsumptionPercentage / 100)
-    if (amount > maxAllowed + 0.01) {
-      return NextResponse.json({ error: 'Exceeds maximum wallet consumption limit' }, { status: 400 })
-    }
+    const selectedWalletCurrency = typeof body.walletCurrency === 'string' ? body.walletCurrency.trim().toUpperCase() : ''
 
     // 2. Fetch user's wallet
-    const walletRes = await supabaseRest(`wallets?user_id=eq.${encodeURIComponent(user.id)}&select=balance,currency`, {
+    let walletQuery = `wallets?user_id=eq.${encodeURIComponent(user.id)}`
+    if (selectedWalletCurrency) {
+      walletQuery += `&currency=eq.${encodeURIComponent(selectedWalletCurrency)}`
+    }
+    const walletRes = await supabaseRest(walletQuery, {
       cache: 'no-store'
     })
     if (!walletRes.ok) {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
     const wallets = await walletRes.json().catch(() => [])
     if (wallets.length === 0) {
-      return NextResponse.json({ error: 'Insufficient wallet balance (No wallet found)' }, { status: 400 })
+      return NextResponse.json({ error: `Insufficient wallet balance (No ${selectedWalletCurrency || 'default'} wallet found)` }, { status: 400 })
     }
 
     const wallet = wallets[0]
@@ -70,6 +70,12 @@ export async function POST(request: Request) {
           convertedWalletBalance = walletBalance * rateToEUR * rateFromEUR
         }
       }
+    }
+
+    // Enforce max consumption limit based on available wallet balance
+    const maxAllowed = convertedWalletBalance * (maxConsumptionPercentage / 100)
+    if (amount > maxAllowed + 0.01) {
+      return NextResponse.json({ error: 'Exceeds maximum wallet consumption limit' }, { status: 400 })
     }
 
     if (convertedWalletBalance < amount - 0.01) {
@@ -95,6 +101,7 @@ export async function POST(request: Request) {
           metadata: {
             is_wallet_only: true,
             wallet_deduction: amount,
+            wallet_currency: walletCurrency,
           },
         },
       ]),
@@ -106,7 +113,81 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to record checkout order' }, { status: 500 })
     }
 
-    // 5. Execute checkout directly
+    // 5. Create the wallet deduction transaction
+    if (walletCurrency !== currency) {
+      const rateRes = await fetch('https://open.er-api.com/v6/latest/EUR', { cache: 'no-store' }).catch(() => null)
+      let walletDeductionAmt = amount
+      if (rateRes?.ok) {
+        const data = await rateRes.json()
+        const rates = data?.rates
+        if (rates && rates[walletCurrency] && rates[currency]) {
+          const rateToEUR = 1 / rates[currency]
+          const rateFromEUR = rates[walletCurrency]
+          walletDeductionAmt = amount * rateToEUR * rateFromEUR
+        }
+      }
+
+      // Debit from the walletCurrency wallet
+      await supabaseRest('transactions', {
+        method: 'POST',
+        body: JSON.stringify([{
+          user_id: user.id,
+          type: 'payment',
+          amount: walletDeductionAmt,
+          currency: walletCurrency,
+          status: 'completed',
+          description: `Recharge ${mobileNumber}`,
+          metadata: {
+            plan_id: planId,
+            mobile_number: mobileNumber,
+            operator_id: operatorId,
+            country_id: countryId,
+            payment_order_id: paymentOrderId,
+            razorpay_payment_id: 'wallet',
+          }
+        }])
+      }).catch((err) => console.error('Failed to insert wallet-only exchange debit:', err))
+
+      // Credit to the payment currency wallet
+      await supabaseRest('transactions', {
+        method: 'POST',
+        body: JSON.stringify([{
+          user_id: user.id,
+          type: 'topup',
+          amount: amount,
+          currency: currency,
+          status: 'completed',
+          description: `Exchange credit from ${walletCurrency} wallet for order ${dummyOrderId}`,
+          metadata: {
+            hide_from_user: true,
+          }
+        }])
+      }).catch((err) => console.error('Failed to insert wallet-only exchange credit:', err))
+    } else {
+      // Debit from the walletCurrency wallet immediately for same currency
+      await supabaseRest('transactions', {
+        method: 'POST',
+        body: JSON.stringify([{
+          user_id: user.id,
+          type: 'payment',
+          amount: amount,
+          currency: walletCurrency,
+          status: 'completed',
+          description: `Recharge ${mobileNumber}`,
+          metadata: {
+            plan_id: planId,
+            mobile_number: mobileNumber,
+            operator_id: operatorId,
+            country_id: countryId,
+            payment_order_id: paymentOrderId,
+            razorpay_payment_id: 'wallet',
+            hide_from_user: true,
+          }
+        }])
+      }).catch((err) => console.error('Failed to insert wallet-only same-currency debit:', err))
+    }
+
+    // 6. Execute checkout directly
     const result = await executeCheckout({
       paymentOrderId,
       planId,
@@ -117,6 +198,9 @@ export async function POST(request: Request) {
       currency,
       razorpayPaymentId: 'wallet',
       userId: user.id,
+      hideTransactionFromUser: walletCurrency !== currency,
+      usedWalletBalance: amount,
+      walletCurrency: walletCurrency,
     })
 
     return NextResponse.json({
