@@ -105,6 +105,130 @@ export async function sendNewAdminDeviceAlert({
   }
 }
 
+export async function sendSuperAdminLockoutAlert({
+  email,
+  ipAddress,
+  country,
+  userAgent,
+}: {
+  email: string
+  ipAddress: string
+  country: string
+  userAgent: string
+}) {
+  const parser = new UAParser(userAgent)
+  const result = parser.getResult()
+  const deviceInfo = `${result.browser.name || 'Unknown Browser'} on ${result.os.name || 'Unknown OS'}`
+
+  const smtpHost = runtimeEnv('SMTP_HOST')
+  const smtpPort = parseInt(runtimeEnv('SMTP_PORT') || '587', 10)
+  const smtpUser = runtimeEnv('SMTP_USER')
+  const smtpPass = runtimeEnv('SMTP_PASS')
+  const isDev = process.env.NODE_ENV !== 'production'
+
+  const appUrl = runtimeEnv('NEXT_PUBLIC_APP_URL') || 'http://localhost:3000'
+  const adminResetUrl = `${appUrl}/admin-user/reset-password`
+
+  const html = `
+    <div style="background-color: #f8fafc; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px 20px; color: #1e293b;">
+      <div style="max-w: 580px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #1e3a8a, #0f172a); padding: 32px 24px; text-align: center;">
+          <div style="display: inline-block; background-color: rgba(245, 158, 11, 0.15); border-radius: 50%; padding: 12px; margin-bottom: 16px;">
+            <!-- Warning Shield Icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block; margin: auto;">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <h1 style="color: #ffffff; font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.025em; text-transform: uppercase;">Security Alert</h1>
+          <p style="color: #94a3b8; font-size: 14px; margin: 8px 0 0 0;">Multiple Failed Sign-in Attempts</p>
+        </div>
+        
+        <!-- Body -->
+        <div style="padding: 32px 24px;">
+          <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #334155;">
+            Hello Super Admin,
+          </p>
+          <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #334155;">
+            This is an automated security notification. There have been <strong>5 or more consecutive failed login attempts</strong> for your account (<strong style="color: #0f172a;">${email}</strong>) from the admin portal.
+          </p>
+          
+          <div style="background-color: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+            <h2 style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #b45309; margin: 0 0 12px 0; letter-spacing: 0.05em;">Attempt Details</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.5;">
+              <tr>
+                <td style="padding: 4px 0; color: #64748b; width: 120px;"><strong>IP Address:</strong></td>
+                <td style="padding: 4px 0; color: #334155; font-family: monospace;">${ipAddress}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;"><strong>Location:</strong></td>
+                <td style="padding: 4px 0; color: #334155;">${country}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;"><strong>Device:</strong></td>
+                <td style="padding: 4px 0; color: #334155;">${deviceInfo}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #64748b;"><strong>Time:</strong></td>
+                <td style="padding: 4px 0; color: #334155;">${new Date().toLocaleString()}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <p style="font-size: 14px; line-height: 1.6; margin: 0 0 24px 0; color: #64748b;">
+            Since this is a Super Admin account, <strong>account freezing has been bypassed</strong> to ensure access continuity. However, if this was not initiated by you, please change your password immediately.
+          </p>
+          
+          <div style="text-align: center; margin: 28px 0 12px 0;">
+            <a href="${adminResetUrl}" style="background-color: #1e3a8a; color: #ffffff; padding: 12px 28px; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 8px; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f1f5f9; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b;">
+          <p style="margin: 0 0 8px 0;">This email was sent to ${email} regarding security settings.</p>
+          <p style="margin: 0;">&copy; ${new Date().getFullYear()} ITU Telecom. All rights reserved.</p>
+        </div>
+      </div>
+    </div>
+  `
+
+  if (!smtpHost || !smtpUser || !smtpPass || smtpHost === 'smtp.example.com') {
+    if (isDev) {
+      console.warn(`\n========================================\n[DEV ONLY] Super Admin Lockout Alert Email to ${email}:\nDetails:\nIP: ${ipAddress}\nLocation: ${country}\nDevice: ${deviceInfo}\n========================================\n`)
+    }
+    return
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    })
+
+    await transporter.sendMail({
+      from: `"ITU Security" <${smtpUser}>`,
+      to: email,
+      subject: 'Security Alert: Multiple Failed Login Attempts',
+      html,
+    })
+  } catch (mailErr) {
+    if (isDev) {
+      console.warn(`\n========================================\n[DEV ONLY] Super Admin Lockout Alert Email to ${email}:\nDetails:\nIP: ${ipAddress}\nLocation: ${country}\nDevice: ${deviceInfo}\n========================================\n`)
+    }
+    console.error('Failed to send Super Admin lockout alert:', mailErr)
+  }
+}
+
 export async function sendLoginOtp({ email, otp }: { email: string; otp: string }) {
   const smtpHost = runtimeEnv('SMTP_HOST')
   const smtpPort = parseInt(runtimeEnv('SMTP_PORT') || '587', 10)
