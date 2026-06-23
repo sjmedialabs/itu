@@ -4,7 +4,7 @@ import { supabaseRest } from '@/lib/db/supabase-rest'
 import { fetchProfileForUser } from '@/lib/auth/get-admin-from-request'
 import { buildUserFromProfile } from '@/lib/auth/build-auth-user'
 import { cacheGetJson, cacheSetJson, cacheDel } from '@/lib/cache/redis'
-import { logLoginAudit, sendLoginOtp } from '@/lib/auth/audit'
+import { logLoginAudit, sendLoginOtp, sendSuperAdminLockoutAlert } from '@/lib/auth/audit'
 import { generateOtp } from '@/lib/security/otp'
 
 function cookieOptions() {
@@ -139,16 +139,22 @@ export async function POST(req: Request) {
         await cacheSetJson(cacheKey, attempts, 3600) // expire after 1 hour
 
         if (attempts >= 5 && existingProfile?.id) {
-          // Freeze the admin account in the profiles table
-          await supabaseRest(`profiles?id=eq.${encodeURIComponent(existingProfile.id)}`, {
-            method: 'PATCH',
-            body: JSON.stringify({ is_active: false, updated_at: new Date().toISOString() }),
-          })
-          await logLoginAudit({ userId: existingProfile?.id, email, status: 'blocked', ipAddress, country, userAgent })
-          return NextResponse.json(
-            { ok: false, error: 'Your account has been freezed due to wrong password attempts' },
-            { status: 401 }
-          )
+          const isSuperAdminSource = existingProfile.app_role === 'super_admin' && source === 'admin'
+          if (isSuperAdminSource) {
+            // Send email warning alert instead of freezing
+            await sendSuperAdminLockoutAlert({ email, ipAddress, country, userAgent })
+          } else {
+            // Freeze the admin account in the profiles table
+            await supabaseRest(`profiles?id=eq.${encodeURIComponent(existingProfile.id)}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ is_active: false, updated_at: new Date().toISOString() }),
+            })
+            await logLoginAudit({ userId: existingProfile?.id, email, status: 'blocked', ipAddress, country, userAgent })
+            return NextResponse.json(
+              { ok: false, error: 'Your account has been freezed due to wrong password attempts' },
+              { status: 401 }
+            )
+          }
         }
 
         return NextResponse.json({ ok: false, error: loginErrorMsg }, { status: 401 })
