@@ -13,10 +13,20 @@
     "system-plans:merge-duplicates": "tsx --tsconfig tsconfig.json scripts/system-plans-duplicate-merge-worker.ts",
     "bootstrap:admin": "tsx --tsconfig tsconfig.json scripts/bootstrap-super-admin.ts",
     "db:migrate": "tsx --tsconfig tsconfig.json scripts/db-migrate.ts",
+    "db:bootstrap": "tsx --tsconfig tsconfig.json scripts/db-bootstrap-legacy.ts",
+    "db:import-dump": "tsx --tsconfig tsconfig.json scripts/import-international-dump.ts",
     "db:deploy": "tsx --tsconfig tsconfig.json scripts/db-deploy.ts",
     "socket:server": "tsx --tsconfig tsconfig.json scripts/socket-server.ts",
     "db:seed-countries": "tsx --tsconfig tsconfig.json scripts/seed-countries.ts",
-    "telecom:seed-registry": "tsx --tsconfig tsconfig.json scripts/telecom-seed-registry.ts"
+    "telecom:seed-registry": "tsx --tsconfig tsconfig.json scripts/telecom-seed-registry.ts",
+    "db:repair-registry-schema": "tsx --tsconfig tsconfig.json scripts/db-repair-registry-schema.ts",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status",
+    "supabase:reset": "supabase db reset",
+    "supabase:sync-env": "tsx --tsconfig tsconfig.json scripts/sync-supabase-env.ts",
+    "db:local": "npm run supabase:start && npm run db:bootstrap && npm run db:migrate && npm run supabase:sync-env",
+    "dev:stack": "docker compose up -d redis && supabase start"
   },
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^5.2.0",

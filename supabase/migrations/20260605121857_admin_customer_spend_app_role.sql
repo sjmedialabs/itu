@@ -1,5 +1,6 @@
 -- Add app_role to admin_customer_spend view
-create or replace view admin_customer_spend as
+drop view if exists admin_customer_spend;
+create view admin_customer_spend as
 select
   p.id as user_id,
   p.email,

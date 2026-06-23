@@ -1,0 +1,1 @@
+-- Local seed data (optional). Run `npm run db:seed-countries` etc. for catalog seeds.
