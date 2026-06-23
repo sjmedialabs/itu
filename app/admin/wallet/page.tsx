@@ -74,6 +74,7 @@ export default function WalletPage() {
       case "topup":
         return <Plus className="h-4 w-4 text-success" />
       case "recharge":
+      case "payment":
         return <ArrowUpRight className="h-4 w-4 text-primary" />
       case "refund":
         return <ArrowDownLeft className="h-4 w-4 text-success" />
@@ -88,6 +89,8 @@ export default function WalletPage() {
         return <Badge variant="outline" className="bg-success/10 text-success border-success/20">Top-up</Badge>
       case "recharge":
         return <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Recharge</Badge>
+      case "payment":
+        return <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">Payment</Badge>
       case "refund":
         return <Badge variant="outline" className="bg-success/10 text-success border-success/20">Refund</Badge>
       case "commission":
@@ -104,6 +107,7 @@ export default function WalletPage() {
       case "commission":
         return "text-success"
       case "recharge":
+      case "payment":
         return "text-destructive"
       default:
         return ""
@@ -117,6 +121,7 @@ export default function WalletPage() {
       case "commission":
         return "+"
       case "recharge":
+      case "payment":
         return "-"
       default:
         return ""
@@ -233,7 +238,7 @@ export default function WalletPage() {
                 <p className="text-xl font-bold">
                   {formatCurrency(
                     transactions
-                      .filter((t) => t.type === "recharge")
+                      .filter((t) => t.type === "recharge" || t.type === "payment")
                       .reduce((acc, t) => acc + t.amount, 0)
                   )}
                 </p>

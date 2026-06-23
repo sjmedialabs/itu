@@ -320,3 +320,140 @@
 {"time":"2026-06-22T10:09:00.436Z","event":"dtone_error","error":"DTONE API Error: 401"}
 {"time":"2026-06-22T10:49:19.430Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
 {"time":"2026-06-22T10:49:20.236Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T04:50:11.208Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T04:50:11.255Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T04:50:14.222Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776556","Items":[{"ProviderCode":"RJIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T04:50:14.253Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776556","Items":[{"ProviderCode":"RJIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T04:50:14.826Z","event":"ding_match"}
+{"time":"2026-06-23T04:50:15.016Z","event":"ding_match"}
+{"time":"2026-06-23T04:50:15.153Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T04:50:15.840Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T04:50:26.583Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T04:50:27.083Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"919988776655","Items":[{"ProviderCode":"VFIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T04:50:27.389Z","event":"ding_match"}
+{"time":"2026-06-23T04:50:27.556Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T06:08:55.246Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T06:08:56.279Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:46:32.832Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T09:46:36.017Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918899776655","Items":[{"ProviderCode":"RJIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T09:46:36.463Z","event":"ding_match"}
+{"time":"2026-06-23T09:46:36.833Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:46:46.952Z","event":"local_db_result","result":{"operator":"Unknown","country":"DZ","source":"database"}}
+{"time":"2026-06-23T09:46:47.719Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:48:38.270Z","event":"local_db_result","result":{"operator":"Unknown","country":"DZ","source":"database"}}
+{"time":"2026-06-23T09:48:38.283Z","event":"local_db_result","result":{"operator":"Unknown","country":"DZ","source":"database"}}
+{"time":"2026-06-23T09:48:39.723Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:48:39.909Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:58:24.264Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T09:58:24.611Z","event":"dtone_error","error":"fetch failed"}
+{"time":"2026-06-23T09:58:37.287Z","event":"local_db_result","result":{"operator":"Unknown","country":"AF","source":"database"}}
+{"time":"2026-06-23T09:58:40.047Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:58:46.830Z","event":"local_db_result","result":{"operator":"Unknown","country":"AT","source":"database"}}
+{"time":"2026-06-23T09:58:47.720Z","event":"ding_api_result","dingResult":{"CountryIso":"AT","Items":[],"ResultCode":2,"ErrorCodes":[{"Code":"NearestMatch"}]}}
+{"time":"2026-06-23T09:58:47.912Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:59:12.144Z","event":"local_db_result","result":{"operator":"Unknown","country":"DZ","source":"database"}}
+{"time":"2026-06-23T09:59:13.031Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T09:59:35.617Z","event":"local_db_result","result":{"operator":"Unknown","country":"AF","source":"database"}}
+{"time":"2026-06-23T09:59:36.281Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T10:06:54.143Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:06:54.901Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:06:55.545Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:10:11.876Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:10:11.901Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:10:12.430Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:10:12.651Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:10:12.991Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:10:13.090Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:22:13.284Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:22:13.346Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:22:14.789Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T10:22:17.546Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T10:23:03.244Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:23:03.305Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:23:04.029Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:23:04.119Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:23:04.620Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:23:05.074Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:27:05.576Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:27:05.640Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:27:05.896Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:27:06.086Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:27:06.153Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:27:06.478Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:33:09.488Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:33:09.706Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:33:12.251Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:33:12.422Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:33:12.763Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:33:13.231Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:36:26.335Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:36:26.363Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:36:27.148Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:36:27.300Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:36:27.538Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:36:27.823Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T10:50:43.341Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:50:43.360Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:50:43.923Z","event":"dtone_error","error":"fetch failed"}
+{"time":"2026-06-23T10:50:44.320Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T10:53:59.212Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T10:53:59.770Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T10:54:00.524Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:10:28.503Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:10:28.551Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:10:29.010Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:10:29.256Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:10:29.302Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:10:29.785Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:36:53.386Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:36:53.453Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:36:53.837Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:36:54.236Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877996709","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:36:54.294Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:36:54.614Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:37:14.590Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:37:15.390Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:37:15.936Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:39:12.648Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:39:12.697Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:39:13.167Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:39:13.433Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:39:13.764Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:39:13.921Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:39:26.604Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:39:26.629Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:39:27.047Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:39:27.134Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:39:27.412Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:39:27.568Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:51:36.698Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:51:36.736Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:51:37.317Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:51:37.410Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:51:37.869Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:51:38.218Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:53:14.187Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:53:14.213Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:53:14.532Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:53:14.712Z","event":"ding_api_result","dingResult":{"CountryIso":"IN","AccountNumberNormalized":"918877990066","Items":[{"ProviderCode":"AIIN","RegionCode":"IN"}],"ResultCode":1,"ErrorCodes":[]}}
+{"time":"2026-06-23T11:53:14.962Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:53:15.143Z","event":"ding_match","matchedOperator":{"id":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","code":"ff0c7aa5-7a51-4687-b7cd-90fad48e98e7","name":"Airtel Dth IND","shortName":"Airtel Dth IND","countryCode":"IN","countryIso3":"IND","logo":null}}
+{"time":"2026-06-23T11:59:16.193Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:59:16.219Z","event":"local_db_result","result":{"operator":"Unknown","country":"IN","source":"database"}}
+{"time":"2026-06-23T11:59:16.725Z","event":"dtone_error","error":"fetch failed"}
+{"time":"2026-06-23T11:59:17.122Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T11:59:36.459Z","event":"local_db_result","result":{"operator":"Unknown","country":"CA","source":"database"}}
+{"time":"2026-06-23T11:59:37.057Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T12:00:01.998Z","event":"local_db_result","result":{"operator":"Unknown","country":"CA","source":"database"}}
+{"time":"2026-06-23T12:00:02.851Z","event":"ding_api_result","dingResult":{"CountryIso":"US","AccountNumberNormalized":"12125550189","Items":[],"ResultCode":2,"ErrorCodes":[{"Code":"NearestMatch"}]}}
+{"time":"2026-06-23T12:00:03.037Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T12:06:31.742Z","event":"local_db_result","result":{"operator":"Unknown","country":"CA","source":"database"}}
+{"time":"2026-06-23T12:06:31.800Z","event":"local_db_result","result":{"operator":"Unknown","country":"CA","source":"database"}}
+{"time":"2026-06-23T12:06:32.194Z","event":"dtone_error","error":"fetch failed"}
+{"time":"2026-06-23T12:06:32.613Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T12:10:20.388Z","event":"local_db_result","result":{"operator":"Unknown","country":"CA","source":"database"}}
+{"time":"2026-06-23T12:10:20.412Z","event":"local_db_result","result":{"operator":"Unknown","country":"CA","source":"database"}}
+{"time":"2026-06-23T12:10:20.805Z","event":"ding_api_result","dingResult":{"CountryIso":"US","AccountNumberNormalized":"12125550189","Items":[],"ResultCode":2,"ErrorCodes":[{"Code":"NearestMatch"}]}}
+{"time":"2026-06-23T12:10:20.817Z","event":"ding_api_result","dingResult":{"CountryIso":"US","AccountNumberNormalized":"12125550189","Items":[],"ResultCode":2,"ErrorCodes":[{"Code":"NearestMatch"}]}}
+{"time":"2026-06-23T12:10:20.982Z","event":"dtone_error","error":"DTONE API Error: 401"}
+{"time":"2026-06-23T12:10:21.134Z","event":"dtone_error","error":"DTONE API Error: 401"}

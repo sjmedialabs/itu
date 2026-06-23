@@ -61,7 +61,24 @@ export async function GET(request: Request) {
       { cache: 'no-store' },
     )
     if (!res.ok) return NextResponse.json({ error: 'Failed to load transactions' }, { status: 500 })
-    const transactions = ((await res.json()) as TransactionRow[]).map(mapTransaction)
+    
+    const rawRows = (await res.json()) as TransactionRow[]
+    const filteredRows = rawRows.filter((row) => {
+      const meta = row.metadata ?? {}
+      if (meta.hide_from_user === true || meta.hide_from_user === 'true') {
+        return false
+      }
+      // Fallback for older transactions without 'hide_from_user' key
+      if (row.type === 'topup') {
+        const desc = row.description || ''
+        if (desc.startsWith('Payment for order') || desc.startsWith('Exchange credit from')) {
+          return false
+        }
+      }
+      return true
+    })
+
+    const transactions = filteredRows.map(mapTransaction)
     return NextResponse.json({ transactions })
   } catch (error) {
     console.error('profile/transactions:', error)

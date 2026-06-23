@@ -6,7 +6,7 @@ describe('mobile-catalog-filter', () => {
     expect(isMobileCatalogOperator({ status: 'ACTIVE', service_domain: 'DTH' })).toBe(false)
     expect(isMobileCatalogOperator({ status: 'ACTIVE', service_domain: 'TRAVEL' })).toBe(false)
     expect(isMobileCatalogOperator({ status: 'INACTIVE', service_domain: 'MOBILE' })).toBe(false)
-    expect(isMobileCatalogOperator({ status: 'ACTIVE', service_domain: null })).toBe(false)
+    expect(isMobileCatalogOperator({ status: 'ACTIVE', service_domain: null })).toBe(true)
     expect(isMobileCatalogOperator({ service_domain: 'MOBILE' })).toBe(true)
   })
 

@@ -31,15 +31,15 @@ export async function GET(request: Request) {
       }
     }
 
-    // 3. Query wallets table for user_id and preferredCurrency
-    const res = await supabaseRest(`wallets?user_id=eq.${encodeURIComponent(user.id)}&currency=eq.${encodeURIComponent(preferredCurrency)}&select=balance,currency&limit=1`, {
+    // 3. Query wallets table for user_id to get ALL wallets
+    const res = await supabaseRest(`wallets?user_id=eq.${encodeURIComponent(user.id)}&select=balance,currency`, {
       cache: 'no-store'
     })
     if (!res.ok) {
       return NextResponse.json({ error: 'Failed to load wallet' }, { status: 500 })
     }
 
-    const wallets = await res.json().catch(() => [])
+    let wallets = await res.json().catch(() => [])
     if (wallets.length === 0) {
       // If no wallet exists for this currency, create one with default balance 0
       const createRes = await supabaseRest('wallets', {
@@ -50,11 +50,25 @@ export async function GET(request: Request) {
       if (!createRes.ok) {
         return NextResponse.json({ error: 'Failed to create wallet' }, { status: 500 })
       }
-      return NextResponse.json({ balance: 0, currency: preferredCurrency, maxConsumptionPercentage })
+      const createdWallet = await createRes.json().catch(() => [])
+      wallets = createdWallet
     }
 
-    const wallet = wallets[0]
-    return NextResponse.json({ balance: Number(wallet.balance) || 0, currency: wallet.currency || preferredCurrency, maxConsumptionPercentage })
+    // Find the wallet matching preferredCurrency, or default to the first one
+    let activeWallet = wallets.find((w: any) => w.currency === preferredCurrency)
+    if (!activeWallet) {
+      activeWallet = wallets[0]
+    }
+
+    return NextResponse.json({
+      balance: Number(activeWallet.balance) || 0,
+      currency: activeWallet.currency || preferredCurrency,
+      maxConsumptionPercentage,
+      wallets: wallets.map((w: any) => ({
+        currency: w.currency,
+        balance: Number(w.balance) || 0
+      }))
+    })
   } catch (error) {
     console.error('Failed to get wallet balance:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
