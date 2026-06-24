@@ -1,5 +1,8 @@
 import { authoritativePricingKey } from '@/lib/catalog/resolve-provider-pricing-for-system-plan'
-import { resolveProvidersForInternalPlan } from '@/lib/recharge-orchestration/resolve-providers-for-system-plan'
+import {
+  resolveProvidersForInternalPlan,
+  resolveProvidersForSystemPlan,
+} from '@/lib/recharge-orchestration/resolve-providers-for-system-plan'
 
 export type OrchestrationProviderValidation = {
   ok: boolean
@@ -15,10 +18,15 @@ const ORPHAN_RUNTIME_PROVIDER = 'ORPHAN_RUNTIME_PROVIDER'
  */
 export async function assertAuthoritativeProviderForRecharge(input: {
   internalPlanId: string
+  /** When set (checkout summary), must match routing — avoids wrong system_plan on shared internal_plan_id. */
+  systemPlanId?: string | null
   providerId: string
   providerPlanId?: string | null
 }): Promise<OrchestrationProviderValidation> {
-  const resolution = await resolveProvidersForInternalPlan(input.internalPlanId)
+  const systemPlanId = input.systemPlanId?.trim() || null
+  const resolution = systemPlanId
+    ? await resolveProvidersForSystemPlan(systemPlanId)
+    : await resolveProvidersForInternalPlan(input.internalPlanId)
   if (!resolution) {
     return { ok: false, reason: 'SYSTEM_PLAN_NOT_FOUND' }
   }

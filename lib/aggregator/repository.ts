@@ -676,7 +676,7 @@ export async function aggListSystemOperators(params: {
     if (params.serviceDomain) {
       filters.push(`service_domain=eq.${enc(params.serviceDomain)}`)
     } else if (params.mobileCatalogOnly) {
-      filters.push('service_domain=eq.MOBILE')
+      filters.push('or=(service_domain.eq.MOBILE,service_domain.is.null)')
     } else if (params.operatorDomain) {
       filters.push(`operator_domain=eq.${enc(params.operatorDomain)}`)
     }

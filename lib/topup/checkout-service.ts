@@ -28,6 +28,7 @@ import {
   assertAuthoritativeProviderForRecharge,
   ORPHAN_RUNTIME_PROVIDER,
 } from '@/lib/recharge-orchestration/validate-orchestration-provider'
+import { resolveSystemPlanFromInternalPlan } from '@/lib/recharge-orchestration/resolve-system-plan-from-internal-plan'
 import type { RechargeRoutingSource } from '@/lib/recharge-orchestration/routing-log-fields'
 import { logProviderExecutionContext } from '@/lib/lcr-v2/provider-execution-context'
 import {
@@ -57,6 +58,7 @@ function enc(v: string): string {
 export type CheckoutInput = {
   paymentOrderId: string
   planId: string
+  systemPlanId?: string
   mobileNumber: string
   operatorId: string
   countryId: string
@@ -64,6 +66,9 @@ export type CheckoutInput = {
   currency: string
   razorpayPaymentId: string
   userId?: string
+  hideTransactionFromUser?: boolean
+  usedWalletBalance?: number
+  walletCurrency?: string
 }
 
 export type CheckoutResult = {
@@ -109,6 +114,9 @@ async function createTransaction(input: CheckoutInput): Promise<string | null> {
           country_id: input.countryId,
           payment_order_id: input.paymentOrderId,
           razorpay_payment_id: input.razorpayPaymentId,
+          hide_from_user: input.hideTransactionFromUser || undefined,
+          used_wallet_balance: input.usedWalletBalance || undefined,
+          wallet_currency: input.walletCurrency || undefined,
         },
       },
     ]),
@@ -251,6 +259,7 @@ export async function executeCheckout(input: CheckoutInput): Promise<CheckoutRes
       countryId: normalizedInput.countryId,
       operatorId: normalizedInput.operatorId,
       productId: normalizedInput.planId,
+      systemPlanId: normalizedInput.systemPlanId,
       transactionId,
     })
   } catch (e) {
@@ -360,9 +369,16 @@ export async function executeCheckout(input: CheckoutInput): Promise<CheckoutRes
   const filtered_provider_count = candidate_provider_count - eligible_provider_count
   const routingDecisionReason = routingResult.routing_decision_reason || (routingResult.routingType === 'RULE' ? 'RULE_MATCHED' : 'LEAST_COST_SELECTED')
 
+  const planLink = await resolveSystemPlanFromInternalPlan(
+    normalizedInput.systemPlanId || normalizedInput.planId,
+  )
+  const canonicalInternalPlanId = planLink?.internalPlanId ?? normalizedInput.planId
+  const canonicalSystemPlanId = normalizedInput.systemPlanId ?? planLink?.systemPlanId ?? null
+
   const snapshot = {
     transaction_id: transactionId,
-    internal_plan_id: normalizedInput.planId,
+    internal_plan_id: canonicalInternalPlanId,
+    system_plan_id: canonicalSystemPlanId,
     routing_strategy: retrySettings?.routingStrategy || 'LEAST_COST',
     routing_rule_matched: routingResult.routingType === 'RULE',
     routing_rule_id: routingResult.ruleId || null,
@@ -375,7 +391,7 @@ export async function executeCheckout(input: CheckoutInput): Promise<CheckoutRes
     routing_decision_reason: routingDecisionReason,
     evaluated_providers,
     // Integrity check parameters
-    internal_plan_id_verify: normalizedInput.planId,
+    internal_plan_id_verify: canonicalInternalPlanId,
     mapping_count: routingResult.mapping_count ?? candidate_provider_count,
   }
 
@@ -383,7 +399,7 @@ export async function executeCheckout(input: CheckoutInput): Promise<CheckoutRes
   const attempt = await dbInsertRechargeAttempt({
     idempotencyKey: input.razorpayPaymentId || null,
     distributorRef: transactionId,
-    internalPlanId: normalizedInput.planId,
+    internalPlanId: canonicalInternalPlanId,
     phoneNumber: normalizedInput.mobileNumber.replace(/\D/g, ''),
     sendAmount: input.amount,
     currency: input.currency || 'INR',
@@ -405,6 +421,10 @@ export async function executeCheckout(input: CheckoutInput): Promise<CheckoutRes
     error?: string
     errorCode?: string
     errorMessage?: string
+    requestMethod?: string
+    requestUrl?: string
+    requestPath?: string
+    requestBody?: Record<string, unknown>
   }> = []
 
   // Try providers in routing order (primary + fallbacks)
@@ -494,7 +514,8 @@ export async function executeCheckout(input: CheckoutInput): Promise<CheckoutRes
     const routingSource = routingSourceForHop(i, routingResult.routingType)
 
     const orphanCheck = await assertAuthoritativeProviderForRecharge({
-      internalPlanId: normalizedInput.planId,
+      internalPlanId: canonicalInternalPlanId,
+      systemPlanId: canonicalSystemPlanId,
       providerId: candidate.providerId,
       providerPlanId: candidate.providerPlanId,
     })
@@ -623,6 +644,10 @@ export async function executeCheckout(input: CheckoutInput): Promise<CheckoutRes
       error: exec.error,
       errorCode: exec.errorCode,
       errorMessage: exec.errorMessage,
+      requestMethod: exec.requestAudit?.method,
+      requestUrl: exec.requestAudit?.url,
+      requestPath: exec.requestAudit?.path ?? exec.requestAudit?.url,
+      requestBody: exec.requestAudit?.body,
     })
 
     if (attempt) {

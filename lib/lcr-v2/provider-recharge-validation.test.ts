@@ -186,7 +186,7 @@ describe('provider recharge validation', () => {
       external_id: 'EXT-1',
       product_id: 98765,
       auto_confirm: true,
-      credit_party_identifier: { mobile_number: '919876543210' },
+      credit_party_identifier: { mobile_number: '+919876543210' },
     })
     expect(payload).not.toHaveProperty('amount')
   })

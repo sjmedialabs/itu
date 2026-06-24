@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const status = (searchParams.get('status') ?? '').trim().toUpperCase()
   const confidenceLevel = (searchParams.get('confidenceLevel') ?? '').trim().toUpperCase()
   const serviceDomain = (searchParams.get('serviceDomain') ?? searchParams.get('operatorDomain') ?? 'MOBILE').trim().toUpperCase()
-  const includeAllDomains = searchParams.get('includeAllDomains') === 'true'
+  const includeAllDomains = searchParams.has('includeAllDomains') ? searchParams.get('includeAllDomains') === 'true' : true
 
   const listParams = {
     limit: Number.isFinite(limit) ? limit : 5000,

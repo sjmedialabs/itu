@@ -10,7 +10,8 @@ import {
   type OrchestrationParityReport,
 } from '@/lib/recharge-orchestration/mapping-parity-validator'
 import {
-  resolveProvidersForInternalPlan,
+  resolveProvidersForPlanId,
+  resolveProvidersForSystemPlan,
   type SystemPlanProviderRow,
 } from '@/lib/recharge-orchestration/resolve-providers-for-system-plan'
 import { resolveSystemPlanFromInternalPlan } from '@/lib/recharge-orchestration/resolve-system-plan-from-internal-plan'
@@ -100,12 +101,21 @@ async function loadLcrProviderRecords(providerIds: string[]): Promise<Map<string
 
 /** Discover LCR candidates from plan_mappings only (authoritative path). */
 export async function loadAuthoritativeCandidateBundle(
-  internalPlanId: string,
+  planId: string,
+  options?: { systemPlanId?: string | null },
 ): Promise<AuthoritativeCandidateBundle | null> {
-  const link = await resolveSystemPlanFromInternalPlan(internalPlanId)
-  const resolution = await resolveProvidersForInternalPlan(internalPlanId)
+  const explicitSystemPlanId = options?.systemPlanId?.trim() || null
+  const link = explicitSystemPlanId
+    ? await resolveSystemPlanFromInternalPlan(explicitSystemPlanId)
+    : await resolveSystemPlanFromInternalPlan(planId)
+
+  const systemPlanId = explicitSystemPlanId ?? link?.systemPlanId ?? null
+  const resolution = systemPlanId
+    ? await resolveProvidersForSystemPlan(systemPlanId)
+    : await resolveProvidersForPlanId(planId)
   if (!resolution?.providers.length) return null
 
+  const internalPlanId = link?.internalPlanId ?? planId
   const overlayByKey = await loadCompatibilityOverlay(internalPlanId)
   const parity = await validateOrchestrationParity(internalPlanId)
 
@@ -138,8 +148,14 @@ export async function loadAuthoritativeCandidateBundle(
   }
 }
 
-export function shouldUseAuthoritativeDiscovery(parity: OrchestrationParityReport | null): boolean {
+export function shouldUseAuthoritativeDiscovery(
+  parity: OrchestrationParityReport | null,
+  authoritativeProviderCount = 0,
+): boolean {
   if (process.env.RECHARGE_FORCE_LEGACY_INTERNAL_MAPPING === '1') return false
-  if (process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS === '1') return true
-  return parity?.ok === true
+  if (process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS === '1') {
+    return authoritativeProviderCount > 0
+  }
+  // Same source as admin/products — stale internal_plan_provider_mapping must not block routing.
+  return authoritativeProviderCount > 0
 }

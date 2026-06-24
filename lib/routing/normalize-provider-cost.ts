@@ -16,7 +16,24 @@ export type NormalizeProviderCostResult = NormalizedProviderCost & {
   success: boolean
 }
 
-let syncRateMap: Map<string, number> | null = null
+const syncRateMaps = new Map<string, Map<string, number>>()
+
+function syncRateMapForBase(baseCurrency: string): Map<string, number> {
+  const base = baseCurrency.trim().toUpperCase()
+  const cached = syncRateMaps.get(base)
+  if (cached) return cached
+
+  const map = new Map<string, number>([[base, 1]])
+  const fallback = getFallbackExchangeRates()
+  const baseRate = fallback[base] ?? 1
+  for (const [from, rate] of Object.entries(fallback)) {
+    if (from === base) continue
+    const toBase = rate / baseRate
+    if (toBase > 0) map.set(from, toBase)
+  }
+  syncRateMaps.set(base, map)
+  return map
+}
 
 /** Sync normalize using fallback config only (display helpers). */
 export function normalizeProviderCostSync(
@@ -25,15 +42,7 @@ export function normalizeProviderCostSync(
   const base = (input.base_currency ?? LCR_BASE_CURRENCY).trim().toUpperCase()
   const amount = input.provider_price
   const currency = input.provider_currency.trim().toUpperCase()
-  if (!syncRateMap) {
-    syncRateMap = new Map([[base, 1]])
-    for (const [from, rate] of Object.entries(getFallbackExchangeRates())) {
-      if (from === base) continue
-      const baseRate = getFallbackExchangeRates()[base] ?? 1
-      const toBase = rate / baseRate
-      if (toBase > 0) syncRateMap.set(from, toBase)
-    }
-  }
+  const syncRateMap = syncRateMapForBase(base)
   const { converted, rate, source } = convertWithRateMap(
     amount,
     currency,

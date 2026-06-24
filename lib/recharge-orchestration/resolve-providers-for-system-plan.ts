@@ -146,11 +146,18 @@ export async function resolveProvidersForSystemPlan(
   }
 }
 
+/** Authoritative providers for checkout plan id (internal_plans.id or system_plans.id). */
+export async function resolveProvidersForPlanId(
+  planId: string,
+): Promise<SystemPlanProvidersResolution | null> {
+  const link = await resolveSystemPlanFromInternalPlan(planId)
+  if (!link) return null
+  return resolveProvidersForSystemPlan(link.systemPlanId)
+}
+
 /** Resolve system plan from internal_plan_id, then load authoritative providers. */
 export async function resolveProvidersForInternalPlan(
   internalPlanId: string,
 ): Promise<SystemPlanProvidersResolution | null> {
-  const link = await resolveSystemPlanFromInternalPlan(internalPlanId)
-  if (!link) return null
-  return resolveProvidersForSystemPlan(link.systemPlanId)
+  return resolveProvidersForPlanId(internalPlanId)
 }

@@ -193,7 +193,10 @@ async function loadLegacyCandidates(productId: string): Promise<{
   }
 }
 
-async function loadCandidates(productId: string): Promise<{
+async function loadCandidates(
+  productId: string,
+  systemPlanId?: string | null,
+): Promise<{
   mappings: MappingRow[]
   providers: Map<string, Record<string, unknown>>
   providersToEvaluate: Record<string, unknown>[]
@@ -201,13 +204,19 @@ async function loadCandidates(productId: string): Promise<{
   systemPlanId: string | null
   discoverySource: 'plan_mappings' | 'legacy_internal_cache'
 }> {
-  const authoritativeBundle = await loadAuthoritativeCandidateBundle(productId)
-  const useAuthoritative = shouldUseAuthoritativeDiscovery(authoritativeBundle?.parity ?? null)
+  const authoritativeBundle = await loadAuthoritativeCandidateBundle(productId, {
+    systemPlanId: systemPlanId ?? undefined,
+  })
+  const authoritativeCount = authoritativeBundle?.mappings.length ?? 0
+  const useAuthoritative = shouldUseAuthoritativeDiscovery(
+    authoritativeBundle?.parity ?? null,
+    authoritativeCount,
+  )
 
   if (useAuthoritative && authoritativeBundle) {
     if (authoritativeBundle.parity && !authoritativeBundle.parity.ok) {
       console.warn(
-        '[ROUTING] Using authoritative plan_mappings discovery (forced or env); parity warnings:',
+        '[ROUTING] Using plan_mappings discovery (admin/products source); internal cache parity warnings:',
         authoritativeBundle.parity.errors,
       )
     }
@@ -221,10 +230,16 @@ async function loadCandidates(productId: string): Promise<{
     }
   }
 
-  if (authoritativeBundle?.parity && !authoritativeBundle.parity.ok) {
+  if (authoritativeBundle?.parity && !authoritativeBundle.parity.ok && authoritativeCount === 0) {
     console.warn(
-      '[ROUTING] Parity check failed — falling back to legacy internal_plan_provider_mapping discovery:',
+      '[ROUTING] No plan_mappings providers — falling back to legacy internal_plan_provider_mapping:',
       authoritativeBundle.parity.errors,
+    )
+  } else if (authoritativeBundle?.parity && !authoritativeBundle.parity.ok && authoritativeCount > 0) {
+    // Authoritative providers exist; legacy fallback skipped (logged above when used).
+  } else if (!authoritativeBundle || authoritativeCount === 0) {
+    console.warn(
+      '[ROUTING] No authoritative plan_mappings candidates — falling back to legacy internal_plan_provider_mapping',
     )
   }
 
@@ -544,7 +559,7 @@ export class RoutingEngineService {
 
     // 2. Load mappings and providers
     const { mappings, providers, providersToEvaluate, authoritativeByKey, systemPlanId, discoverySource } =
-      await loadCandidates(normalizedInput.productId)
+      await loadCandidates(normalizedInput.productId, normalizedInput.systemPlanId)
     const mapping_count = mappings.length
     console.log(
       `[ROUTING] internal_plan_id: ${normalizedInput.productId} | system_plan_id: ${systemPlanId ?? 'n/a'} | discovery: ${discoverySource} | mapping_count: ${mapping_count}`,

@@ -1,5 +1,6 @@
 import type { ProviderPayloadStrategy } from '@/lib/routing/provider-payload-strategy'
 import type { RoutingProviderCandidate } from '@/lib/routing/types'
+import { formatDtoneMobileNumber } from '@/lib/dtone'
 
 export type ProviderExecutionContext = {
   providerId: string
@@ -161,7 +162,9 @@ export function buildProviderPayloadFromContext(ctx: ProviderExecutionContext): 
           external_id: ctx.externalId,
           product_id: Number(ctx.providerPlanId),
           auto_confirm: true,
-          credit_party_identifier: { mobile_number: ctx.phoneDigits },
+          credit_party_identifier: {
+            mobile_number: formatDtoneMobileNumber(ctx.phoneDigits),
+          },
         },
         logLine: `PLAN_ID product_id=${ctx.providerPlanId}`,
       }
@@ -215,6 +218,14 @@ export function builtInErrorMessage(adapterKey: string, raw: unknown): string | 
     }
   }
   if (adapterKey === 'dtone') {
+    const errors = res?.errors as Array<{ code?: string | number; message?: string }> | undefined
+    if (Array.isArray(errors) && errors.length > 0) {
+      const first = errors[0]
+      const code = first?.code != null ? String(first.code) : undefined
+      const msg = first?.message
+      if (code === '1000404') return msg || 'DTONE_PRODUCT_NOT_FOUND'
+      if (msg) return code ? `[${code}] ${msg}` : msg
+    }
     const statusId = (res?.status as { id?: number } | undefined)?.id
     if (statusId === 3 || statusId === 9) return 'DTONE_DECLINED'
   }

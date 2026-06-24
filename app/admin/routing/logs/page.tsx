@@ -374,8 +374,42 @@ export default function RoutingLogsPage() {
                                               </span>
                                             </div>
                                           </div>
+                                        ) : Array.isArray(detail.plan_mappings_catalog) &&
+                                          detail.plan_mappings_catalog.length > 0 ? (
+                                          <div className="mt-1 space-y-2">
+                                            <div className="text-[11px] text-muted-foreground">
+                                              Selected provider unavailable — showing plan_mappings (admin/products source):
+                                            </div>
+                                            {detail.plan_mappings_catalog.map((row: any) => (
+                                              <div
+                                                key={`${row.provider_id}:${row.provider_plan_id}`}
+                                                className="rounded border bg-muted/30 p-2 font-mono text-[11px] break-all space-y-0.5"
+                                              >
+                                                <div className="font-semibold text-foreground">
+                                                  {row.provider_name ?? row.provider_id}
+                                                </div>
+                                                <div>SKU: {row.provider_plan_id ?? '—'}</div>
+                                                <div>
+                                                  Wholesale:{' '}
+                                                  {formatProviderCostDual(
+                                                    row.provider_wholesale_amount,
+                                                    row.provider_wholesale_currency,
+                                                  ).providerCostDisplay}
+                                                </div>
+                                                <div>
+                                                  Destination:{' '}
+                                                  {formatMoney(
+                                                    row.destination_face_value,
+                                                    row.destination_currency,
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
                                         ) : (
-                                          <div className="font-semibold text-amber-700">No plan_mappings row resolved</div>
+                                          <div className="font-semibold text-amber-700">
+                                            No plan_mappings row resolved
+                                          </div>
                                         )}
                                       </div>
                                       <div>
@@ -413,8 +447,8 @@ export default function RoutingLogsPage() {
                                           evaluatedList.map((ev: any, idx: number) => {
                                             const providerName = ev.providerName || ev.providerId || ev.provider || '—'
                                             const isEligible = ev.eligibility ?? ev.eligible ?? false
-                                            const cost = ev.costPrice ?? ev.cost
-                                            const currency = ev.currency
+                                            const cost = ev.provider_wholesale_amount ?? ev.costPrice ?? ev.cost
+                                            const currency = ev.provider_wholesale_currency ?? ev.currency
                                             const costDisplay = formatProviderCostDual(cost, currency).providerCostDisplay
                                             const margin = ev.margin
                                             const priority = ev.priority
@@ -488,6 +522,26 @@ export default function RoutingLogsPage() {
                                                 <div>Source: <span className="font-medium text-foreground">{hop.source}</span></div>
                                                 <div>Cost: <span className="font-medium text-foreground">{hop.costDisplay ?? formatProviderCostDual(hop.cost, hop.currency).providerCostDisplay}</span></div>
                                               </div>
+                                              {(hop.requestUrl || hop.requestBody) && (
+                                                <div className="text-[10px] p-2 rounded border mt-1 font-mono bg-muted/30 border-muted space-y-1">
+                                                  {hop.requestMethod && hop.requestUrl && (
+                                                    <div>
+                                                      <span className="text-muted-foreground">API: </span>
+                                                      <span className="font-medium text-foreground break-all">
+                                                        {hop.requestMethod} {hop.requestUrl}
+                                                      </span>
+                                                    </div>
+                                                  )}
+                                                  {hop.requestBody && (
+                                                    <div>
+                                                      <span className="text-muted-foreground block">Body:</span>
+                                                      <pre className="whitespace-pre-wrap break-all text-[9px] mt-0.5">
+                                                        {JSON.stringify(hop.requestBody, null, 2)}
+                                                      </pre>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              )}
                                               {!hop.ok && (
                                                 <div className={`text-[10px] p-2 rounded border mt-1 font-mono ${
                                                   hop.skipped

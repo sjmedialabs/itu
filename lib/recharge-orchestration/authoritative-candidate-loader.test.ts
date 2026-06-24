@@ -1,12 +1,15 @@
 import { shouldUseAuthoritativeDiscovery } from '@/lib/recharge-orchestration/authoritative-candidate-loader'
 import type { OrchestrationParityReport } from '@/lib/recharge-orchestration/mapping-parity-validator'
 
-function parityReport(ok: boolean): OrchestrationParityReport {
+function parityReport(
+  ok: boolean,
+  authoritativeProviderCount: number,
+): OrchestrationParityReport {
   return {
     internalPlanId: 'plan-1',
     systemPlanId: 'sys-1',
     ok,
-    authoritativeProviderCount: ok ? 2 : 0,
+    authoritativeProviderCount,
     internalCacheProviderCount: 2,
     orphanInternalRows: ok ? 0 : 1,
     missingInternalCacheRows: 0,
@@ -26,25 +29,36 @@ describe('shouldUseAuthoritativeDiscovery', () => {
     else process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS = originalAuthoritative
   })
 
-  it('uses authoritative path when parity ok', () => {
+  it('uses plan_mappings when authoritative providers exist (parity ok)', () => {
     delete process.env.RECHARGE_FORCE_LEGACY_INTERNAL_MAPPING
     delete process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS
-    expect(shouldUseAuthoritativeDiscovery(parityReport(true))).toBe(true)
+    expect(shouldUseAuthoritativeDiscovery(parityReport(true, 2), 2)).toBe(true)
   })
 
-  it('falls back when parity fails and no force flag', () => {
+  it('uses plan_mappings when providers exist even if parity fails', () => {
     delete process.env.RECHARGE_FORCE_LEGACY_INTERNAL_MAPPING
     delete process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS
-    expect(shouldUseAuthoritativeDiscovery(parityReport(false))).toBe(false)
+    expect(shouldUseAuthoritativeDiscovery(parityReport(false, 2), 2)).toBe(true)
   })
 
-  it('forces authoritative when RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS=1', () => {
+  it('falls back when no authoritative providers', () => {
+    delete process.env.RECHARGE_FORCE_LEGACY_INTERNAL_MAPPING
+    delete process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS
+    expect(shouldUseAuthoritativeDiscovery(parityReport(false, 0), 0)).toBe(false)
+  })
+
+  it('forces authoritative when RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS=1 and providers exist', () => {
     process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS = '1'
-    expect(shouldUseAuthoritativeDiscovery(parityReport(false))).toBe(true)
+    expect(shouldUseAuthoritativeDiscovery(parityReport(false, 2), 2)).toBe(true)
+  })
+
+  it('does not use authoritative when count is zero even with force flag', () => {
+    process.env.RECHARGE_AUTHORITATIVE_PLAN_MAPPINGS = '1'
+    expect(shouldUseAuthoritativeDiscovery(parityReport(false, 0), 0)).toBe(false)
   })
 
   it('forces legacy when RECHARGE_FORCE_LEGACY_INTERNAL_MAPPING=1', () => {
     process.env.RECHARGE_FORCE_LEGACY_INTERNAL_MAPPING = '1'
-    expect(shouldUseAuthoritativeDiscovery(parityReport(true))).toBe(false)
+    expect(shouldUseAuthoritativeDiscovery(parityReport(true, 2), 2)).toBe(false)
   })
 })

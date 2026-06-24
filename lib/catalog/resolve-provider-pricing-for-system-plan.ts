@@ -210,19 +210,16 @@ export async function resolveProviderPricingForSystemPlan(
   }
 }
 
-/** Resolve system_plan_id from internal_plan_id, then load authoritative pricing. */
+/** Resolve system_plan_id from internal or system plan id, then load authoritative pricing. */
 export async function resolveProviderPricingForInternalPlan(
-  internalPlanId: string,
+  planId: string,
 ): Promise<SystemPlanPricingResolution | null> {
-  const res = await supabaseRest(
-    `system_plans?internal_plan_id=eq.${enc(internalPlanId)}&select=id&limit=1`,
-    { cache: 'no-store' },
+  const { resolveSystemPlanFromInternalPlan } = await import(
+    '@/lib/recharge-orchestration/resolve-system-plan-from-internal-plan'
   )
-  if (!res.ok) return null
-  const rows = (await res.json()) as Array<{ id: string }>
-  const systemPlanId = rows[0]?.id
-  if (!systemPlanId) return null
-  return resolveProviderPricingForSystemPlan(systemPlanId)
+  const link = await resolveSystemPlanFromInternalPlan(planId)
+  if (!link) return null
+  return resolveProviderPricingForSystemPlan(link.systemPlanId)
 }
 
 /** Lookup authoritative wholesale for a provider on a plan (internal or system plan id). */

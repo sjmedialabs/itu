@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
     const planId = typeof body.planId === 'string' ? body.planId.trim() : ''
+    const systemPlanId = typeof body.systemPlanId === 'string' ? body.systemPlanId.trim() : ''
     const amount = typeof body.amount === 'number' ? body.amount : 0
     const currency = typeof body.currency === 'string' ? body.currency.trim() : 'INR'
     const mobileNumber = typeof body.mobileNumber === 'string' ? body.mobileNumber.trim() : ''
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       currency,
       notes: {
         plan_id: planId,
+        system_plan_id: systemPlanId || undefined,
         mobile_number: mobileNumber,
         operator_id: operatorId,
         country_id: countryId,
@@ -96,6 +98,7 @@ export async function POST(request: Request) {
             razorpay_amount: razorpayOrder.amount,
             used_wallet_balance: usedWalletBalance,
             wallet_currency: walletCurrency,
+            system_plan_id: systemPlanId || null,
           },
         },
       ]),
@@ -111,7 +114,7 @@ export async function POST(request: Request) {
       currency,
     })
   } catch (error) {
-    console.error('payments/razorpay/create-order:', error)
+    console.error('payment/razorpay/create-order:', error)
     return NextResponse.json({ error: 'Failed to create Razorpay order' }, { status: 500 })
   }
 }

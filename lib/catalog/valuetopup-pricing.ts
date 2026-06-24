@@ -93,6 +93,32 @@ export function resolveValueTopupPricing(sku: Record<string, unknown>): Wholesal
   }
 }
 
+/**
+ * ValueTopup wholesale from persisted provider_plans_raw row.
+ * Admin routing logs and LCR use amount/currency columns as authoritative EUR distributor cost.
+ */
+export function resolveValueTopupWholesaleFromRow(input: {
+  amount?: number | null
+  currency?: string | null
+  rawJson?: unknown
+}): Pick<WholesalePricing, 'wholesaleAmount' | 'wholesaleCurrency'> {
+  const columnAmount = finiteAmount(input.amount)
+  const columnCurrency = currencyCode(input.currency)
+  if (columnAmount != null && columnCurrency) {
+    return { wholesaleAmount: columnAmount, wholesaleCurrency: columnCurrency }
+  }
+
+  if (input.rawJson && isValueTopupSkuRaw(input.rawJson)) {
+    const vt = resolveValueTopupPricing(input.rawJson as Record<string, unknown>)
+    return {
+      wholesaleAmount: vt.wholesaleAmount,
+      wholesaleCurrency: vt.wholesaleCurrency,
+    }
+  }
+
+  return { wholesaleAmount: columnAmount, wholesaleCurrency: columnCurrency }
+}
+
 export function isValueTopupSkuRaw(raw: unknown): boolean {
   if (!raw || typeof raw !== 'object') return false
   const sku = raw as Record<string, unknown>

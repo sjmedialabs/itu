@@ -1,6 +1,7 @@
 /** Recharge orchestration — plan_mappings as authoritative provider source for LCR + recharge. */
 export { resolveSystemPlanFromInternalPlan } from '@/lib/recharge-orchestration/resolve-system-plan-from-internal-plan'
 export {
+  resolveProvidersForPlanId,
   resolveProvidersForSystemPlan,
   resolveProvidersForInternalPlan,
   type SystemPlanProviderRow,

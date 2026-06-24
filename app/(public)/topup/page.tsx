@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CalendarDays, Check, ChevronDown, MessageSquareText, PhoneCall, Sparkles, Wifi } from 'lucide-react'
 import { useTopupStore, type TopupPlan } from '@/store/topupStore'
-import { useLocalePreferencesStore } from '@/lib/stores'
 import { getDialCode } from '@/lib/lcr/countries'
 import { flagEmojiFromIso } from '@/lib/lcr/countries'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -248,8 +247,6 @@ export default function TopupPlanSelectionPage() {
   const router = useRouter()
   const { countryCode, phoneNumber, operator, setPhoneDetails, setOperator, selectPlan, calculatePricing } =
     useTopupStore()
-  const { currencyCode, languageCode } = useLocalePreferencesStore()
-  const userCurrency: 'INR' | 'EUR' = currencyCode === 'INR' ? 'INR' : 'EUR'
   const selectedCountry = useMemo(() => {
     return countriesList.find((c) => c.code.toUpperCase() === countryCode.toUpperCase())
   }, [countryCode])
@@ -455,7 +452,7 @@ export default function TopupPlanSelectionPage() {
     }
     setPhoneError(false)
     selectPlan(plan)
-    calculatePricing({ currency: userCurrency, fee: 0.49 })
+    calculatePricing({ fee: 0.49 })
     router.push('/topup/summary')
   }
 

@@ -65,6 +65,8 @@ export type RoutingResolveInput = {
   countryId: string
   operatorId: string
   productId: string
+  /** When set, plan_mappings are loaded for this system_plans.id (matches admin/products). */
+  systemPlanId?: string
   transactionAmount?: number
   transactionId?: string
   service?: string

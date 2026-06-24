@@ -851,6 +851,26 @@ export function buildRoutingAuditDetailFromLogs(logs: RoutingLogRow[]): RoutingA
         errorMessage: skipReason,
       })
     }
+
+    if (event === 'ORPHAN_RUNTIME_PROVIDER') {
+      const skipReason =
+        typeof meta.failureReason === 'string'
+          ? meta.failureReason
+          : typeof meta.responseMessage === 'string'
+            ? meta.responseMessage
+            : 'Orphan runtime provider detected'
+      attempts.push({
+        providerName: log.providerName || log.providerCode || '—',
+        cost: log.providerCost,
+        currency: log.providerCurrency ?? (typeof meta.providerCurrency === 'string' ? meta.providerCurrency : null),
+        source: meta.routingRuleMatched === 'Yes' ? 'RULE' : 'LCR',
+        ok: false,
+        skipped: true,
+        skipReason,
+        error: 'ORPHAN_RUNTIME_PROVIDER',
+        errorMessage: skipReason,
+      })
+    }
   }
 
   const evaluatedProviders = Array.from(evaluatedMap.values())

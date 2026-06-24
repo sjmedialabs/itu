@@ -10,6 +10,31 @@ import { formatProviderCostDual, mergeRoutingLogPricing } from '@/lib/routing/lo
 import { resolvePlanMappingPricing } from '@/lib/routing/plan-mapping-pricing'
 import { enrichEvaluatedProvidersWithAuthoritativePricing } from '@/lib/routing/enrich-evaluated-providers-authoritative'
 import { buildSystemPlanPricingConsistencyReport } from '@/lib/catalog/system-plan-pricing-consistency'
+import { resolveProviderPricingForInternalPlan, resolveProviderPricingForSystemPlan } from '@/lib/catalog/resolve-provider-pricing-for-system-plan'
+
+function catalogMappingsFromPricing(
+  pricing: Awaited<ReturnType<typeof resolveProviderPricingForInternalPlan>>,
+) {
+  if (!pricing) return []
+  return pricing.providers.map((p) => ({
+    provider_id: p.providerId,
+    provider_name: p.providerName,
+    provider_plan_id: p.providerPlanId,
+    provider_wholesale_amount: p.provider_wholesale_amount,
+    provider_wholesale_currency: p.provider_wholesale_currency,
+    destination_face_value: p.destination_face_value,
+    destination_currency: p.destination_currency,
+    system_plan_id: p.systemPlanId,
+    plan_mapping_id: p.planMappingId,
+  }))
+}
+
+async function loadCatalogMappings(planId: string, systemPlanId?: string | null) {
+  if (systemPlanId) {
+    return resolveProviderPricingForSystemPlan(systemPlanId).then(catalogMappingsFromPricing)
+  }
+  return resolveProviderPricingForInternalPlan(planId).then(catalogMappingsFromPricing)
+}
 
 async function loadPlanMappingPricing(input: {
   planId: string | null | undefined
@@ -43,8 +68,19 @@ export async function GET(request: Request) {
   try {
     const attempt = await dbFindRechargeByDistributorRef(transactionId).catch(() => null)
     if (attempt) {
+      const routingDecision =
+        attempt.routing_decision && typeof attempt.routing_decision === 'object'
+          ? (attempt.routing_decision as Record<string, unknown>)
+          : {}
+      const systemPlanId =
+        typeof routingDecision.system_plan_id === 'string'
+          ? routingDecision.system_plan_id.trim()
+          : null
+
+      const catalogMappings = await loadCatalogMappings(attempt.internal_plan_id, systemPlanId)
+
       const mappedPricing = await loadPlanMappingPricing({
-        planId: attempt.internal_plan_id,
+        planId: systemPlanId || attempt.internal_plan_id,
         providerId: attempt.selected_provider_id,
         providerPlanId: attempt.selected_provider_plan_id,
       })
@@ -68,11 +104,6 @@ export async function GET(request: Request) {
       )
 
       const attempts = Array.isArray(attempt.attempts) ? attempt.attempts : []
-      const routingDecision =
-        attempt.routing_decision && typeof attempt.routing_decision === 'object'
-          ? (attempt.routing_decision as Record<string, unknown>)
-          : {}
-
       const evaluatedRaw = routingDecision.evaluated_providers ?? routingDecision.evaluatedProviders
       const evaluatedList = Array.isArray(evaluatedRaw) ? [...evaluatedRaw] : []
       for (const hop of attempts) {
@@ -120,6 +151,7 @@ export async function GET(request: Request) {
       const enrichedEvaluated = await enrichEvaluatedProvidersWithAuthoritativePricing(
         attempt.internal_plan_id,
         evaluatedList as Array<Record<string, unknown>>,
+        { systemPlanId },
       )
 
       const consistencyReport = mappedPricing?.systemPlanId
@@ -151,6 +183,7 @@ export async function GET(request: Request) {
                 system_plan_id: mappedPricing.systemPlanId,
               }
             : null,
+          plan_mappings_catalog: catalogMappings,
           routing_decision: {
             ...routingDecisionWithSkips,
             evaluated_providers: enrichedEvaluated.evaluated,
@@ -172,6 +205,10 @@ export async function GET(request: Request) {
               error: hop.error,
               errorCode: hop.errorCode,
               errorMessage: hop.errorMessage,
+              requestMethod: hop.requestMethod ?? null,
+              requestUrl: hop.requestUrl ?? null,
+              requestPath: hop.requestPath ?? hop.requestUrl ?? null,
+              requestBody: hop.requestBody ?? null,
             }
           }),
         },
@@ -186,8 +223,16 @@ export async function GET(request: Request) {
     }
 
     const firstLog = enrichedLogs[0]
+    const planIdForCatalog = audit.internal_plan_id ?? firstLog?.productId ?? null
+    const auditRouting = audit.routing_decision as { system_plan_id?: string } | undefined
+    const systemPlanIdForCatalog =
+      typeof auditRouting?.system_plan_id === 'string' ? auditRouting.system_plan_id.trim() : null
+    const catalogMappings = planIdForCatalog
+      ? await loadCatalogMappings(planIdForCatalog, systemPlanIdForCatalog)
+      : []
+
     const mappedPricing = await loadPlanMappingPricing({
-      planId: audit.internal_plan_id ?? firstLog?.productId,
+      planId: planIdForCatalog ?? undefined,
       providerId: firstLog?.providerId,
       providerPlanId: null,
     })
@@ -216,6 +261,7 @@ export async function GET(request: Request) {
               system_plan_id: mappedPricing.systemPlanId,
             }
           : null,
+        plan_mappings_catalog: catalogMappings,
       },
     })
   } catch (err: unknown) {

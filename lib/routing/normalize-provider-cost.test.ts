@@ -2,6 +2,7 @@ import {
   normalizeProviderCost,
   normalizeProviderCostSync,
 } from '@/lib/routing/normalize-provider-cost'
+import { formatProviderCostDual } from '@/lib/routing/log-pricing'
 
 jest.mock('@/lib/routing/exchange-rates', () => {
   const actual = jest.requireActual('@/lib/routing/exchange-rates')
@@ -55,5 +56,13 @@ describe('normalizeProviderCost', () => {
     expect(inr.success).toBe(true)
     expect(eur.success).toBe(true)
     expect(inr.normalized_provider_price).toBeGreaterThan(eur.normalized_provider_price)
+  })
+
+  it('formatProviderCostDual converts EUR wholesale to distinct INR (not same number)', () => {
+    const dual = formatProviderCostDual(4.07, 'EUR')
+    expect(dual.providerCostEur).toBeCloseTo(4.07, 2)
+    expect(dual.providerCostInr).not.toBeNull()
+    expect(dual.providerCostInr).not.toBeCloseTo(4.07, 1)
+    expect(dual.providerCostInr!).toBeGreaterThan(100)
   })
 })

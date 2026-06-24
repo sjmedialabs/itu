@@ -1,4 +1,5 @@
 import { executeGenericRequest, type EndpointConfig } from '@/lib/providers/generic-client'
+import { executeDtoneMappedRecharge } from '@/lib/providers/dtone-recharge'
 import { resolveMetadataConfig, buildApiClientConfig } from '@/lib/providers/generic-connector'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { rowToProviderConfig } from '@/lib/lcr-v2/provider-credentials'
@@ -21,6 +22,15 @@ export type ExecuteResult = {
   error?: string
   errorCode?: string
   errorMessage?: string
+  requestAudit?: {
+    method: string
+    url: string
+    path?: string
+    base_url?: string
+    body?: Record<string, unknown>
+    product_id?: number
+    provider_plan_id?: string
+  }
 }
 
 function getPathValue(obj: unknown, path: string): unknown {
@@ -75,6 +85,14 @@ export async function executeMappedRecharge(ctx: ProviderExecutionContext): Prom
     const config = await getActiveProviderConfig(key)
     if (!config) {
       return { ok: false, error: `PROVIDER_NOT_ACTIVE:${key}` }
+    }
+
+    if (key === 'dtone') {
+      const systemPlanId =
+        'systemPlanId' in ctx
+          ? (ctx as { systemPlanId?: string | null }).systemPlanId
+          : undefined
+      return executeDtoneMappedRecharge(ctx, config, { systemPlanId })
     }
 
     const meta = resolveMetadataConfig(config)

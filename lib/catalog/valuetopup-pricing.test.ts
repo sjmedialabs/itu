@@ -1,4 +1,4 @@
-import { resolveValueTopupPricing } from '@/lib/catalog/valuetopup-pricing'
+import { resolveValueTopupPricing, resolveValueTopupWholesaleFromRow } from '@/lib/catalog/valuetopup-pricing'
 import { resolveWholesalePricing } from '@/lib/catalog/provider-wholesale-pricing'
 
 const VALUE_TOPUP_AIRTEL_BUNDLE = {
@@ -64,6 +64,46 @@ describe('resolveValueTopupPricing', () => {
           faceValue: 798,
           faceValueCurrency: 'INR',
           faceValueInWalletCurrency: 10.92,
+        },
+        walletCurrency: 'EUR',
+        skuId: 1210,
+      },
+    })
+    expect(pricing.wholesaleAmount).toBe(10.92)
+    expect(pricing.wholesaleCurrency).toBe('EUR')
+    expect(pricing.destinationAmount).toBe(798)
+    expect(pricing.destinationCurrency).toBe('INR')
+  })
+
+  it('resolveValueTopupWholesaleFromRow prefers provider_plans_raw.amount column', () => {
+    const fromRow = resolveValueTopupWholesaleFromRow({
+      amount: 10.92,
+      currency: 'EUR',
+      rawJson: {
+        min: {
+          faceValue: 798,
+          faceValueCurrency: 'INR',
+          faceValueInWalletCurrency: 99.99,
+        },
+        walletCurrency: 'EUR',
+        skuId: 1210,
+      },
+    })
+    expect(fromRow.wholesaleAmount).toBe(10.92)
+    expect(fromRow.wholesaleCurrency).toBe('EUR')
+  })
+
+  it('resolveWholesalePricing prefers provider_plans_raw.amount over raw JSON wallet fields', () => {
+    const pricing = resolveWholesalePricing({
+      amount: 10.92,
+      currency: 'EUR',
+      destinationAmount: 798,
+      destinationCurrency: 'INR',
+      rawJson: {
+        min: {
+          faceValue: 798,
+          faceValueCurrency: 'INR',
+          faceValueInWalletCurrency: 99.99,
         },
         walletCurrency: 'EUR',
         skuId: 1210,

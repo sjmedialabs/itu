@@ -1,6 +1,7 @@
 import {
   authoritativePricingKey,
   resolveProviderPricingForInternalPlan,
+  resolveProviderPricingForSystemPlan,
   type AuthoritativeProviderPricingRow,
 } from '@/lib/catalog/resolve-provider-pricing-for-system-plan'
 import { logAuthoritativeMappingMissing } from '@/lib/catalog/system-plan-pricing-consistency'
@@ -47,12 +48,16 @@ function pricingDebugFromAuthoritative(
 export async function enrichEvaluatedProvidersWithAuthoritativePricing(
   internalPlanId: string,
   evaluated: Array<Record<string, unknown>>,
+  options?: { systemPlanId?: string | null },
 ): Promise<{
   evaluated: Array<Record<string, unknown>>
   pricingDebug: ProviderPricingDebugMeta[]
   orphanProviders: string[]
 }> {
-  const authoritative = await resolveProviderPricingForInternalPlan(internalPlanId)
+  const systemPlanId = options?.systemPlanId?.trim() || null
+  const authoritative = systemPlanId
+    ? await resolveProviderPricingForSystemPlan(systemPlanId)
+    : await resolveProviderPricingForInternalPlan(internalPlanId)
   const pricingDebug: ProviderPricingDebugMeta[] = []
   const orphanProviders: string[] = []
 
@@ -71,7 +76,21 @@ export async function enrichEvaluatedProvidersWithAuthoritativePricing(
       : authoritative?.byProviderId.get(providerId)
 
     if (!authRow) {
-      if (providerId && entry.mappingExists !== false) {
+      const runtimeEligible = entry.eligibility === true || entry.eligible === true
+      const runtimeCost =
+        typeof entry.provider_wholesale_amount === 'number'
+          ? entry.provider_wholesale_amount
+          : typeof entry.costPrice === 'number'
+            ? entry.costPrice
+            : null
+      const runtimeCurrency =
+        typeof entry.provider_wholesale_currency === 'string'
+          ? entry.provider_wholesale_currency
+          : typeof entry.currency === 'string'
+            ? entry.currency
+            : null
+
+      if (providerId && entry.mappingExists !== false && !(runtimeEligible && runtimeCost != null)) {
         logAuthoritativeMappingMissing({
           context: 'routing-logs-evaluated-providers',
           internalPlanId,
@@ -83,6 +102,18 @@ export async function enrichEvaluatedProvidersWithAuthoritativePricing(
       }
       const debug = pricingDebugFromAuthoritative(null, providerName, providerPlanId)
       pricingDebug.push(debug)
+
+      if (runtimeEligible && runtimeCost != null) {
+        return {
+          ...entry,
+          pricingSource: debug,
+          costPrice: runtimeCost,
+          currency: runtimeCurrency,
+          provider_wholesale_amount: runtimeCost,
+          provider_wholesale_currency: runtimeCurrency,
+        }
+      }
+
       return {
         ...entry,
         pricingSource: debug,

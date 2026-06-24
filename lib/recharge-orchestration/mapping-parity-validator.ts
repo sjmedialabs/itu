@@ -47,7 +47,7 @@ type InternalRow = {
 
 /**
  * Compare plan_mappings authoritative providers vs internal_plan_provider_mapping cache.
- * Runtime may switch to authoritative discovery when ok === true.
+ * Advisory only — routing uses plan_mappings whenever providers exist (same as admin/products).
  */
 export async function validateOrchestrationParity(
   internalPlanId: string,

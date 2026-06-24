@@ -1,4 +1,5 @@
 import { supabaseRest } from '@/lib/db/supabase-rest'
+import { formatDtoneMobileNumber, validateDtoneCreditPartyPayload } from '@/lib/dtone'
 import {
   isAmountWithinProviderRange,
   resolveProviderRechargeAmount,
@@ -157,7 +158,9 @@ export function buildDtonePayload(input: {
     external_id: input.externalId,
     product_id: Number(input.providerPlanId),
     auto_confirm: true,
-    credit_party_identifier: { mobile_number: input.phoneDigits },
+    credit_party_identifier: {
+      mobile_number: formatDtoneMobileNumber(input.phoneDigits),
+    },
   }
 }
 
@@ -304,6 +307,10 @@ export function evaluateProviderRechargeEligibility(
     })
     if (!built.payload) {
       return ineligible(built.error ?? 'Invalid DT One payload', PROVIDER_RECHARGE_ERRORS.PROVIDER_INVALID_PAYLOAD, rawPlan, amountResolution)
+    }
+    const creditPartyError = validateDtoneCreditPartyPayload(rawPlan.raw_json, built.payload)
+    if (creditPartyError) {
+      return ineligible(creditPartyError, PROVIDER_RECHARGE_ERRORS.PROVIDER_INVALID_PAYLOAD, rawPlan, amountResolution)
     }
     return eligible(rawPlan, amountResolution, built.payload)
   }
