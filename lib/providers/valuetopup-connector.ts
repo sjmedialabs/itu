@@ -1,5 +1,5 @@
 import { fetchValuetopupCatalog } from '@/lib/valuetopup'
-import { resolveValueTopupPricing } from '@/lib/catalog/valuetopup-pricing'
+import { resolveValueTopupPricing, VALUE_TOPUP_WALLET_CURRENCY } from '@/lib/catalog/valuetopup-pricing'
 import { normalizeCountryIso3 } from '@/lib/lcr/countries'
 import { extractValidityDaysFromRaw } from '@/lib/aggregator/raw-validity'
 import type {
@@ -75,7 +75,7 @@ export const valuetopupConnector: ProviderConnector = {
 
         const pricing = resolveValueTopupPricing(sku as Record<string, unknown>)
         const wholesaleAmount = pricing.wholesaleAmount ?? 0
-        const wholesaleCurrency = pricing.wholesaleCurrency ?? destinationCurrency
+        const wholesaleCurrency = pricing.wholesaleCurrency ?? VALUE_TOPUP_WALLET_CURRENCY
 
         const benefit: NormalizedBenefit = {
           type: sku.category === 'Pin' ? 'AIRTIME' : sku.category === 'eSIM' || sku.category === 'Rtr' ? 'COMBO' : 'OTHER',

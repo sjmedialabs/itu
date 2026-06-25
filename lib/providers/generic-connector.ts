@@ -126,7 +126,7 @@ export const BUILT_IN_CONFIGS: Record<string, BuiltInProviderConfig> = {
       retailAmount: 'min.faceValue',
       retailCurrency: 'min.faceValueCurrency',
       wholesaleAmount: 'min.faceValueInWalletCurrency',
-      wholesaleCurrency: 'walletCurrency',
+      wholesaleCurrency: 'walletCurrency', // resolved as EUR when faceValueInWalletCurrency is set
       destinationAmount: 'min.faceValue',
       destinationUnit: 'min.faceValueCurrency',
       description: 'productDescription',

@@ -1,6 +1,9 @@
 import { extractPricingFromRaw } from '@/lib/admin/provider-pricing-extractor'
 import type { WholesalePricing } from '@/lib/catalog/provider-wholesale-pricing'
 
+/** ValueTopup distributor wallet / settlement currency (faceValueInWalletCurrency is always EUR). */
+export const VALUE_TOPUP_WALLET_CURRENCY = 'EUR'
+
 function finiteAmount(value: unknown): number | null {
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
   return Number.isFinite(n) && n > 0 ? n : null
@@ -40,10 +43,10 @@ function readBlockCurrency(
  *
  * API semantics (catalog `/catalog/skus` payLoad items):
  * - `min.faceValue` + `min.faceValueCurrency` = destination face value delivered to subscriber
- * - `min.faceValueInWalletCurrency` = explicit distributor purchase price in wallet/settlement currency
+ * - `min.faceValueInWalletCurrency` = distributor purchase price in EUR wallet currency
  * - `discount` = percentage off face value (fallback only when wallet price is absent)
  *
- * Wholesale currency and destination currency are independent — never copy faceValueCurrency onto wholesale.
+ * Wholesale (EUR) and destination (e.g. INR) are independent — never copy faceValueCurrency onto wholesale.
  */
 export function resolveValueTopupPricing(sku: Record<string, unknown>): WholesalePricing {
   const min = sku.min as Record<string, unknown> | undefined
@@ -61,23 +64,28 @@ export function resolveValueTopupPricing(sku: Record<string, unknown>): Wholesal
     readBlockCurrency(max, ['faceValueCurrency', 'deliveryCurrencyCode']) ??
     (extracted.basePrice != null ? currencyCode(extracted.currency) : null)
 
-  // Explicit purchase / settlement price from API (preferred over derived formula).
-  let wholesaleAmount =
+  const walletWholesaleAmount =
     readBlockAmount(min, ['faceValueInWalletCurrency', 'walletAmount', 'purchasePrice']) ??
-    readBlockAmount(max, ['faceValueInWalletCurrency', 'walletAmount', 'purchasePrice']) ??
+    readBlockAmount(max, ['faceValueInWalletCurrency', 'walletAmount', 'purchasePrice'])
+
+  // Explicit EUR wallet price from API (preferred over derived formula).
+  let wholesaleAmount =
+    walletWholesaleAmount ??
     finiteAmount(pricing?.unit_price) ??
     finiteAmount(sku.denomination_unit_price) ??
     finiteAmount(extracted.providerCost)
 
-  let wholesaleCurrency =
-    currencyCode(sku.walletCurrency) ??
-    currencyCode(sku.settlementCurrency) ??
-    currencyCode(pricing?.currency) ??
-    readBlockCurrency(min, ['walletCurrency', 'settlementCurrency']) ??
-    readBlockCurrency(max, ['walletCurrency', 'settlementCurrency']) ??
-    null
+  let wholesaleCurrency: string | null =
+    walletWholesaleAmount != null
+      ? VALUE_TOPUP_WALLET_CURRENCY
+      : currencyCode(sku.walletCurrency) ??
+        currencyCode(sku.settlementCurrency) ??
+        currencyCode(pricing?.currency) ??
+        readBlockCurrency(min, ['walletCurrency', 'settlementCurrency']) ??
+        readBlockCurrency(max, ['walletCurrency', 'settlementCurrency']) ??
+        null
 
-  // Fallback: derive from face value + discount% in destination currency (not wallet currency).
+  // Fallback: derive from face value + discount% in destination currency (legacy SKUs without wallet price).
   if (wholesaleAmount == null && destinationAmount != null) {
     const discountPercent = finiteAmount(sku.discount) ?? 0
     wholesaleAmount =
@@ -104,8 +112,11 @@ export function resolveValueTopupWholesaleFromRow(input: {
 }): Pick<WholesalePricing, 'wholesaleAmount' | 'wholesaleCurrency'> {
   const columnAmount = finiteAmount(input.amount)
   const columnCurrency = currencyCode(input.currency)
-  if (columnAmount != null && columnCurrency) {
-    return { wholesaleAmount: columnAmount, wholesaleCurrency: columnCurrency }
+  if (columnAmount != null) {
+    return {
+      wholesaleAmount: columnAmount,
+      wholesaleCurrency: columnCurrency ?? VALUE_TOPUP_WALLET_CURRENCY,
+    }
   }
 
   if (input.rawJson && isValueTopupSkuRaw(input.rawJson)) {
