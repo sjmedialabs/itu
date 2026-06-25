@@ -20,6 +20,7 @@ import {
 } from '@/lib/topup/currency-conversion'
 import { formatPlanRechargeValue } from '@/lib/catalog/plan-recharge-value'
 import { buildInternationalMobile, getDialCode } from '@/lib/lcr/countries'
+import { validateRazorpayPaymentAmount } from '@/lib/payments/razorpay-amount'
 import {
   computeRechargeProcessingFeeAmount,
   DEFAULT_RECHARGE_PROCESSING_FEES,
@@ -754,6 +755,11 @@ export default function TopupSummaryPage() {
     return crossRateUsingEurBase(selectedWalletCurrency, amounts.payableCurrency, exchangeRates)
   }, [exchangeRates, selectedWalletCurrency, amounts.payableCurrency])
 
+  const razorpayPaymentCheck = useMemo(() => {
+    if (amounts.grand <= 0) return { ok: true as const }
+    return validateRazorpayPaymentAmount(amounts.grand, amounts.payableCurrency)
+  }, [amounts.grand, amounts.payableCurrency])
+
   const startPayment = useCallback(async () => {
     if (!selectedPlan || !pricing || isSubmitting) return
     setIsSubmitting(true)
@@ -807,6 +813,11 @@ export default function TopupSummaryPage() {
       // 1. Load Razorpay script
       const ok = await loadRazorpayScript()
       if (!ok) throw new Error('Unable to load Razorpay checkout')
+
+      const rzAmountCheck = validateRazorpayPaymentAmount(amounts.grand, amounts.payableCurrency)
+      if (!rzAmountCheck.ok) {
+        throw new Error(rzAmountCheck.error)
+      }
 
       // 2. Create Razorpay order via new endpoint
       const createRes = await fetch('/api/payment/razorpay/create-order', {
@@ -1213,6 +1224,11 @@ export default function TopupSummaryPage() {
                         Exchange rate unavailable. Select {lineCurrency} or try again shortly.
                       </p>
                     )}
+                    {!razorpayPaymentCheck.ok && amounts.grand > 0 && (
+                      <p className="text-[10px] font-medium text-amber-700">
+                        {razorpayPaymentCheck.error}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center justify-between pt-2">
                     <span className="font-semibold text-neutral-700">Total Payable</span>
@@ -1233,7 +1249,11 @@ export default function TopupSummaryPage() {
                     'bg-[var(--hero-cta-orange)]',
                   )}
                   onClick={proceedToPay}
-                  disabled={isSubmitting || amounts.conversionFailed}
+                  disabled={
+                    isSubmitting ||
+                    amounts.conversionFailed ||
+                    (amounts.grand > 0 && !razorpayPaymentCheck.ok)
+                  }
                 >
                   {isSubmitting ? (
                     <>

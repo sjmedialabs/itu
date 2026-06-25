@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { supabaseGetUser } from '@/lib/supabase/auth-rest'
 import { runtimeEnv } from '@/lib/env/runtime'
-import { toRazorpayMinorUnits } from '@/lib/payments/razorpay-amount'
+import { validateRazorpayPaymentAmount } from '@/lib/payments/razorpay-amount'
 
 async function getUserIdFromRequest(request: Request): Promise<string | null> {
   const cookie = request.headers.get('cookie') ?? ''
@@ -41,6 +41,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields: planId, amount, mobileNumber' }, { status: 400 })
     }
 
+    const amountCheck = validateRazorpayPaymentAmount(amount, currency)
+    if (!amountCheck.ok) {
+      return NextResponse.json({ error: amountCheck.error, code: 'RAZORPAY_MIN_AMOUNT' }, { status: 400 })
+    }
+
     const keyId = runtimeEnv('RAZORPAY_KEY_ID')
     const keySecret = runtimeEnv('RAZORPAY_KEY_SECRET')
     if (!keyId || !keySecret) {
@@ -48,7 +53,7 @@ export async function POST(request: Request) {
     }
 
     const orderPayload = {
-      amount: toRazorpayMinorUnits(amount, currency),
+      amount: amountCheck.minorUnits,
       currency,
       notes: {
         plan_id: planId,

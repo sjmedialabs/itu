@@ -3,7 +3,7 @@ import { linkPaymentOrderToCheckoutSession } from '@/lib/topup/prepare-checkout-
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { supabaseGetUser } from '@/lib/supabase/auth-rest'
 import { runtimeEnv } from '@/lib/env/runtime'
-import { toRazorpayMinorUnits } from '@/lib/payments/razorpay-amount'
+import { toRazorpayMinorUnits, validateRazorpayPaymentAmount } from '@/lib/payments/razorpay-amount'
 
 async function getUserIdFromRequest(request: Request): Promise<string | null> {
   const cookie = request.headers.get('cookie') ?? ''
@@ -43,6 +43,11 @@ export async function POST(request: Request) {
     if (!planId || !amount || !mobileNumber) {
       return NextResponse.json({ error: 'Missing required fields: planId, amount, mobileNumber' }, { status: 400 })
     }
+
+    const amountCheck = validateRazorpayPaymentAmount(amount, currency)
+    if (!amountCheck.ok) {
+      return NextResponse.json({ error: amountCheck.error, code: 'RAZORPAY_MIN_AMOUNT' }, { status: 400 })
+    }
     if (!checkoutSessionId) {
       return NextResponse.json({ error: 'Missing checkoutSessionId — provider must be selected before payment' }, { status: 400 })
     }
@@ -54,7 +59,7 @@ export async function POST(request: Request) {
     }
 
     const orderPayload = {
-      amount: toRazorpayMinorUnits(amount, currency),
+      amount: amountCheck.minorUnits,
       currency,
       notes: {
         plan_id: planId,
