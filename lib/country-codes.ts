@@ -1,4 +1,12 @@
-import { getCountries, getCountryCallingCode, parsePhoneNumberFromString, CountryCode } from 'libphonenumber-js'
+import {
+  getCountries,
+  getCountryCallingCode,
+  parsePhoneNumberFromString,
+  validatePhoneNumberLength,
+  isValidPhoneNumber as isValidPhoneNumberLib,
+  Metadata,
+  type CountryCode,
+} from 'libphonenumber-js'
 
 export const isValidPhoneNumber = (phone: string, countryCode: string): boolean => {
   try {
@@ -6,6 +14,78 @@ export const isValidPhoneNumber = (phone: string, countryCode: string): boolean 
     return phoneNumber ? phoneNumber.isValid() : false
   } catch {
     return false
+  }
+}
+
+export type NationalPhoneValidation = {
+  digits: string
+  valid: boolean
+  error: string | null
+  minDigits: number
+  maxDigits: number
+}
+
+/** National-number digit bounds from libphonenumber numbering plan metadata. */
+export function getNationalPhoneDigitBounds(countryCode: string): { minDigits: number; maxDigits: number } {
+  const cc = countryCode.trim().toUpperCase() as CountryCode
+  try {
+    const metadata = new Metadata()
+    metadata.selectNumberingPlan(cc)
+    const lengths = metadata.numberingPlan?.possibleLengths?.() ?? []
+    if (lengths.length) {
+      return { minDigits: Math.min(...lengths), maxDigits: Math.max(...lengths) }
+    }
+  } catch {
+    // fall through
+  }
+  return { minDigits: 7, maxDigits: 15 }
+}
+
+function lengthErrorMessage(bounds: { minDigits: number; maxDigits: number }, kind: 'TOO_SHORT' | 'TOO_LONG'): string {
+  if (bounds.minDigits === bounds.maxDigits) {
+    return kind === 'TOO_SHORT'
+      ? `Mobile number must be ${bounds.minDigits} digits`
+      : `Mobile number must be exactly ${bounds.maxDigits} digits`
+  }
+  return kind === 'TOO_SHORT'
+    ? `Enter at least ${bounds.minDigits} digits for this country`
+    : `Enter at most ${bounds.maxDigits} digits for this country`
+}
+
+/** Validate local mobile digits (without country dial prefix) for a selected ISO-2 country. */
+export function validateNationalPhoneDigits(digits: string, countryCode: string): NationalPhoneValidation {
+  const cleaned = digits.replace(/\D/g, '')
+  const bounds = getNationalPhoneDigitBounds(countryCode)
+  const cc = countryCode.trim().toUpperCase() as CountryCode
+
+  if (!cleaned) {
+    return { digits: cleaned, valid: false, error: null, ...bounds }
+  }
+
+  const lengthResult = validatePhoneNumberLength(cleaned, cc)
+  if (lengthResult === 'TOO_SHORT') {
+    return {
+      digits: cleaned,
+      valid: false,
+      error: lengthErrorMessage(bounds, 'TOO_SHORT'),
+      ...bounds,
+    }
+  }
+  if (lengthResult === 'TOO_LONG') {
+    return {
+      digits: cleaned,
+      valid: false,
+      error: lengthErrorMessage(bounds, 'TOO_LONG'),
+      ...bounds,
+    }
+  }
+
+  const valid = isValidPhoneNumberLib(cleaned, cc)
+  return {
+    digits: cleaned,
+    valid,
+    error: valid ? null : 'Enter a valid mobile number for this country',
+    ...bounds,
   }
 }
 
