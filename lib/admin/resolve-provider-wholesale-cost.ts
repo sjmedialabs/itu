@@ -1,5 +1,5 @@
 import { resolveWholesalePricing } from '@/lib/catalog/provider-wholesale-pricing'
-import { isValueTopupSkuRaw } from '@/lib/catalog/valuetopup-pricing'
+import { isValueTopupSkuRaw, VALUE_TOPUP_WALLET_CURRENCY } from '@/lib/catalog/valuetopup-pricing'
 import { extractPricingFromRaw } from '@/lib/admin/provider-pricing-extractor'
 
 export type RawPlanPricingRow = {
@@ -191,7 +191,7 @@ export function extractPricingAmounts(
       normalizeCurrency(raw.source_currency) ??
       readJsonCurrency(raw.raw_json, ['wholesalecurrency', 'sendcurrency', 'sourcecurrency']) ??
       extracted.currency ??
-      null)
+      VALUE_TOPUP_WALLET_CURRENCY)
     : (normalizeCurrency(raw.wholesale_currency) ??
       wholesale.wholesaleCurrency ??
       normalizeCurrency(raw.source_currency) ??

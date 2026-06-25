@@ -43,7 +43,7 @@ describe('resolveValueTopupPricing', () => {
     expect(result.wholesaleCurrency).toBe('INR')
   })
 
-  it('never assigns wholesale currency from faceValueCurrency when wallet price exists', () => {
+  it('uses EUR for wholesale when faceValueInWalletCurrency is present, ignoring faceValueCurrency', () => {
     const result = resolveValueTopupPricing({
       min: {
         faceValue: 10.5,
@@ -54,7 +54,21 @@ describe('resolveValueTopupPricing', () => {
     })
     expect(result.destinationCurrency).toBe('EUR')
     expect(result.wholesaleAmount).toBe(77.73)
-    expect(result.wholesaleCurrency).toBe('INR')
+    expect(result.wholesaleCurrency).toBe('EUR')
+  })
+
+  it('defaults wholesale currency to EUR when faceValueInWalletCurrency exists without walletCurrency', () => {
+    const result = resolveValueTopupPricing({
+      min: {
+        faceValue: 798,
+        faceValueCurrency: 'INR',
+        faceValueInWalletCurrency: 10.92,
+      },
+      skuId: 1210,
+    })
+    expect(result.wholesaleAmount).toBe(10.92)
+    expect(result.wholesaleCurrency).toBe('EUR')
+    expect(result.destinationCurrency).toBe('INR')
   })
 
   it('resolveWholesalePricing routes ValueTopup SKU raw JSON', () => {
