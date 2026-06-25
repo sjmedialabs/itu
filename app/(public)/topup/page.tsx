@@ -14,7 +14,7 @@ import { getDialCode } from '@/lib/lcr/countries'
 import { flagEmojiFromIso } from '@/lib/lcr/countries'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { countriesList, getFlagEmoji } from '@/lib/country-codes'
+import { countriesList, getFlagEmoji, validateNationalPhoneDigits } from '@/lib/country-codes'
 import { formatPlanRechargeValue } from '@/lib/catalog/plan-recharge-value'
 import {
   computeRechargeProcessingFeeAmount,
@@ -275,11 +275,19 @@ function TopupPlanSelectionContent() {
   const [providers, setProviders] = useState<DbProvider[]>([])
   const [selectedProviderCode, setSelectedProviderCode] = useState<string>('')
   const [manualOperatorOverride, setManualOperatorOverride] = useState<boolean>(false)
-  const [phoneError, setPhoneError] = useState<boolean>(false)
+  const [phoneSubmitError, setPhoneSubmitError] = useState<string | null>(null)
   const [buyingPlanId, setBuyingPlanId] = useState<string | null>(null)
   const [processingFeePercents, setProcessingFeePercents] = useState<RechargeProcessingFees>(
     DEFAULT_RECHARGE_PROCESSING_FEES,
   )
+
+  const phoneValidation = useMemo(
+    () => validateNationalPhoneDigits(localPhone, countryCode),
+    [localPhone, countryCode],
+  )
+  const phoneFieldError =
+    phoneSubmitError ??
+    (localPhone.trim().length > 0 && !phoneValidation.valid ? phoneValidation.error : null)
 
   useEffect(() => {
     const loadFees = async () => {
@@ -301,6 +309,7 @@ function TopupPlanSelectionContent() {
       if (!urlCountryCode || !/^[A-Z]{2}$/.test(urlCountryCode)) return
       if (!countriesList.some((c) => c.code.toUpperCase() === urlCountryCode)) return
       setLocalPhone('')
+      setPhoneSubmitError(null)
       setPhoneDetails({ countryCode: urlCountryCode, phoneNumber: '' })
     }
 
@@ -322,12 +331,13 @@ function TopupPlanSelectionContent() {
     setSelectedProviderCode('')
     setResolvedProviderCode(undefined)
     setOperator('')
+    setPhoneSubmitError(null)
   }, [countryCode, setOperator])
 
   useEffect(() => {
     const run = async () => {
       if (manualOperatorOverride) return
-      if (!localPhone || localPhone.length < 10) {
+      if (!phoneValidation.digits || phoneValidation.digits.length < phoneValidation.minDigits) {
         setResolvedProviderCode(undefined)
         setSelectedProviderCode('')
         setOperator('')
@@ -364,7 +374,7 @@ function TopupPlanSelectionContent() {
       }
     }
     void run()
-  }, [localPhone, countryCode, dialPrefix, setOperator, manualOperatorOverride])
+  }, [localPhone, countryCode, dialPrefix, setOperator, manualOperatorOverride, phoneValidation.digits, phoneValidation.minDigits])
 
   // Auto-detect is handled automatically, manual selection via form Select dropdown
 
@@ -487,17 +497,17 @@ function TopupPlanSelectionContent() {
   }, [plans, tab, sort])
 
   const onBuy = async (plan: TopupPlan) => {
-    if (localPhone.trim().length < 10) {
-      setPhoneError(true)
+    if (!phoneValidation.valid) {
+      setPhoneSubmitError(phoneValidation.error ?? 'Enter a valid mobile number for this country')
       const el = document.getElementById('phone-input')
       if (el) el.focus()
       return
     }
     if (!effectiveOperatorId) {
-      setPhoneError(true)
+      setPhoneSubmitError('Select an operator to continue')
       return
     }
-    setPhoneError(false)
+    setPhoneSubmitError(null)
     const subtotal =
       Number(plan.recharge_amount) > 0
         ? Number(plan.recharge_amount)
@@ -606,7 +616,7 @@ function TopupPlanSelectionContent() {
             <div className="flex flex-col justify-center">
               <div className={cn(
                 "flex items-center gap-2 rounded-xl bg-white px-4 py-3 ring-1 transition-all w-full",
-                phoneError ? "ring-red-500" : "ring-black/10"
+                phoneFieldError ? "ring-red-500" : "ring-black/10"
               )}>
                 <Input
                   id="phone-input"
@@ -614,17 +624,23 @@ function TopupPlanSelectionContent() {
                   onChange={(e) => {
                     const val = e.target.value.replace(/[^\d]/g, '')
                     setLocalPhone(val)
-                    if (val.length >= 10) setPhoneError(false)
+                    if (phoneSubmitError) setPhoneSubmitError(null)
                   }}
-                  placeholder="Enter mobile number"
+                  placeholder={
+                    phoneValidation.minDigits === phoneValidation.maxDigits
+                      ? `${phoneValidation.minDigits}-digit mobile number`
+                      : `${phoneValidation.minDigits}–${phoneValidation.maxDigits} digit mobile number`
+                  }
+                  maxLength={phoneValidation.maxDigits}
+                  inputMode="numeric"
                   className="h-8 rounded-none border-0 bg-transparent p-0 text-sm font-medium text-neutral-900 shadow-none placeholder:text-neutral-400 focus-visible:border-transparent focus-visible:ring-0 w-full"
                 />
               </div>
-              {/* {phoneError && (
+              {phoneFieldError && (
                 <span className="text-[10px] text-red-500 mt-1 font-semibold pl-1">
-                  10+ digit number required
+                  {phoneFieldError}
                 </span>
-              )} */}
+              )}
             </div>
             <div className="flex items-center rounded-xl bg-white ring-1 ring-black/10 w-full px-2">
               <Select
