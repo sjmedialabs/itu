@@ -126,6 +126,11 @@ export async function POST(request: Request) {
       }
 
       const metadata = (po.metadata && typeof po.metadata === 'object' ? po.metadata : {}) as Record<string, any>
+      const effectiveUserId = po.user_id ? String(po.user_id) : requestUserId || undefined
+      const checkoutSessionId =
+        (typeof po.checkout_session_id === 'string' && po.checkout_session_id) ||
+        (typeof po.pending_transaction_id === 'string' && po.pending_transaction_id) ||
+        ''
       const usedWalletBalance = Number(metadata.used_wallet_balance ?? 0)
       const razorpayAmount = Number(po.amount ?? 0)
       const fullAmount = razorpayAmount + usedWalletBalance
@@ -215,12 +220,6 @@ export async function POST(request: Request) {
       const systemPlanId =
         typeof metadata.system_plan_id === 'string' ? metadata.system_plan_id.trim() : ''
 
-      const checkoutSessionId =
-        (typeof po.checkout_session_id === 'string' && po.checkout_session_id) ||
-        (typeof po.pending_transaction_id === 'string' && po.pending_transaction_id) ||
-        ''
-
-      const effectiveUserId = po.user_id ? String(po.user_id) : requestUserId || undefined
       if (effectiveUserId && checkoutSessionId) {
         await attachUserIdToCheckoutRecords({
           userId: effectiveUserId,

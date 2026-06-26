@@ -75,6 +75,7 @@ type RecurringSchedule = {
 }
 
 const RECURRING_STORAGE_KEY = 'itu-recurring-schedules'
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
 
 export default function TransactionsPage() {
   const { transactions, fetchTransactions } = useWalletStore()
@@ -95,6 +96,8 @@ export default function TransactionsPage() {
   const [recurringFrequency, setRecurringFrequency] = useState<'monthly' | 'custom'>('monthly')
   const [customIntervalDays, setCustomIntervalDays] = useState('30')
   const [paymentAuthorized, setPaymentAuthorized] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState<number>(10)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -156,6 +159,23 @@ export default function TransactionsPage() {
 
     return true
   }), [transactions, searchQuery, typeFilter, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize))
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return filteredTransactions.slice(start, start + pageSize)
+  }, [filteredTransactions, currentPage, pageSize])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, typeFilter, statusFilter, pageSize])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -481,7 +501,7 @@ export default function TransactionsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredTransactions.map((txn) => (
+                  paginatedTransactions.map((txn) => (
                     <TableRow key={txn.id}>
                       <TableCell>
                         <div className="flex items-start gap-2">
@@ -575,6 +595,61 @@ export default function TransactionsPage() {
               </TableBody>
             </Table>
           </div>
+          {filteredTransactions.length > 0 && (
+            <div className="flex flex-col gap-4 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs font-medium text-muted-foreground">
+                Showing {Math.min((currentPage - 1) * pageSize + 1, filteredTransactions.length)} to{' '}
+                {Math.min(currentPage * pageSize, filteredTransactions.length)} of {filteredTransactions.length}{' '}
+                transactions
+              </p>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold"
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="px-2 text-xs font-semibold">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold"
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Rows per page:</span>
+                  <Select
+                    value={String(pageSize)}
+                    onValueChange={(val) => {
+                      setPageSize(Number(val))
+                      setCurrentPage(1)
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[72px] text-xs">
+                      <SelectValue placeholder={String(pageSize)} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <SelectItem key={size} value={String(size)}>
+                          {size}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
