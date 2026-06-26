@@ -29,6 +29,7 @@ export type TransactionDetailModel = {
   currency: string
   customerName?: string
   customerEmail?: string
+  customerPhone?: string
   customerCountry?: string
   destinationCountry?: string
   networkOperator?: string
@@ -184,6 +185,7 @@ export function TransactionDetailDialog({ open, onOpenChange, transaction, viewe
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
                   <p><span className="text-muted-foreground">Name:</span> {transaction.customerName || '—'}</p>
                   <p><span className="text-muted-foreground">Email:</span> {transaction.customerEmail || '—'}</p>
+                  <p><span className="text-muted-foreground">Phone:</span> {transaction.customerPhone || '—'}</p>
                   <p><span className="text-muted-foreground">Country:</span> {transaction.customerCountry || '—'}</p>
                 </div>
               </section>

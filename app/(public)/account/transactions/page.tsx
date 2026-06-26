@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useWalletStore } from '@/lib/stores'
+import { isHiddenUserTransaction } from '@/lib/transactions/display-status'
 import {
   Search,
   Download,
@@ -125,6 +126,15 @@ export default function TransactionsPage() {
 
   // Filter transactions
   const filteredTransactions = useMemo(() => transactions.filter((txn) => {
+    if (isHiddenUserTransaction({
+      type: txn.type,
+      status: txn.status,
+      description: txn.description,
+      metadata: txn.metadata as Record<string, unknown> | null,
+    })) {
+      return false
+    }
+
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()

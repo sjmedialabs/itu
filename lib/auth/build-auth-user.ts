@@ -18,6 +18,18 @@ export type ProfileRow = {
 
 const CANONICAL_SUPER_EMAIL = 'admin@itu.com'
 
+/** E.164-style display for profile phone (national digits + country_code). */
+export function formatProfilePhone(
+  profile: Pick<ProfileRow, 'phone' | 'country_code'> | null | undefined,
+): string | undefined {
+  const raw = profile?.phone?.trim()
+  if (!raw) return undefined
+  if (profile?.country_code && !raw.startsWith('+')) {
+    return `+${String(profile.country_code).replace('+', '')}${raw}`
+  }
+  return raw
+}
+
 export function normalizeAppRole(raw: string | null | undefined, email: string): string {
   const e = email.trim().toLowerCase()
   if (e === CANONICAL_SUPER_EMAIL) return 'super_admin'
@@ -45,10 +57,7 @@ export function buildUserFromProfile(
           ? 'reseller'
           : 'user'
 
-  let displayPhone = profile?.phone ?? undefined
-  if (displayPhone && profile?.country_code && !displayPhone.startsWith('+')) {
-    displayPhone = `+${profile.country_code.replace('+', '')}${displayPhone}`
-  }
+  const displayPhone = formatProfilePhone(profile)
 
   return {
     id: authUser.id,

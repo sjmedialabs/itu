@@ -30,6 +30,7 @@ import {
 import { Search, Filter, Download, MoreHorizontal, Eye, RefreshCw, RotateCcw } from 'lucide-react'
 import { useAuthStore } from '@/lib/stores'
 import { toast } from 'sonner'
+import { resolveTransactionDisplayStatus } from '@/lib/transactions/display-status'
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,8 @@ type AdminTransaction = {
   user?: {
     name: string
     email: string
+    phone?: string
+    country?: string
   }
   rechargeDetails?: {
     productName: string
@@ -136,7 +139,38 @@ export default function AdminTransactionsPage() {
     return '—'
   }
 
-  const getPhoneNumber = (order: AdminTransaction) => {
+  const getDisplayStatus = (order: AdminTransaction) =>
+    resolveTransactionDisplayStatus({
+      type: order.type,
+      transactionStatus: order.status,
+      rechargeOrderStatus: order.rechargeDetails?.status,
+    })
+
+  const getCustomerName = (order: AdminTransaction) => {
+    const name = order.user?.name?.trim()
+    if (name && name !== 'Unknown') return name
+    const phone = order.user?.phone?.trim()
+    if (phone && phone !== '—') return phone
+    return 'Unknown'
+  }
+
+  const getCustomerEmail = (order: AdminTransaction) => {
+    const email = order.user?.email?.trim()
+    return email && email !== '—' ? email : '—'
+  }
+
+  const getCustomerPhone = (order: AdminTransaction) => {
+    const phone = order.user?.phone?.trim()
+    return phone && phone !== '—' ? phone : '—'
+  }
+
+  const getCustomerCountry = (order: AdminTransaction) => {
+    const country = order.user?.country?.trim()
+    if (country && country !== '—') return country
+    return String(order.metadata?.countryName ?? order.metadata?.country ?? '—')
+  }
+
+  const getDestinationPhoneNumber = (order: AdminTransaction) => {
     return String(order.metadata?.phone_number ?? order.metadata?.phoneNumber ?? order.metadata?.mobile_number ?? order.rechargeDetails?.phoneNumber ?? '—')
   }
 
@@ -144,6 +178,9 @@ export default function AdminTransactionsPage() {
     const metadata = order.metadata ?? {}
     const matchesSearch =
       order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      getCustomerName(order).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      getCustomerEmail(order).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(order.user?.phone ?? '').includes(searchQuery) ||
       String(metadata.phone_number ?? '').includes(searchQuery) ||
       String(metadata.operator ?? metadata.carrierName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       order.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -171,22 +208,23 @@ export default function AdminTransactionsPage() {
     setDetailModel({
       id: order.id,
       createdAt: order.createdAt,
-      status: order.status as any,
+      status: getDisplayStatus(order) as any,
       amount: order.amount,
       currency: order.currency,
-      customerName: order.user?.name || String(metadata.customerName ?? 'Unknown'),
-      customerEmail: order.user?.email || String(metadata.customerEmail ?? '—'),
-      customerCountry: String(metadata.country ?? '—'),
+      customerName: getCustomerName(order),
+      customerEmail: getCustomerEmail(order),
+      customerPhone: getCustomerPhone(order),
+      customerCountry: getCustomerCountry(order),
       destinationCountry: String(metadata.countryName ?? metadata.country ?? '—'),
       networkOperator: order.rechargeDetails?.operatorName || order.metadata?.operator_id || order.metadata?.operator || String(order.metadata?.carrierName ?? '—'),
-      mobileNumber: getPhoneNumber(order),
+      mobileNumber: getDestinationPhoneNumber(order),
       paymentMethod: String(metadata.payment_gateway ?? '—'),
       paymentStatus: (metadata.razorpay_payment_id || metadata.payment_order_id) ? 'completed' : order.status,
       paymentReferenceId: String(metadata.razorpay_payment_id ?? metadata.providerRef ?? order.id),
       gatewayResponse: String(metadata.gatewayResponse ?? ((metadata.razorpay_payment_id || metadata.payment_order_id || order.status === 'completed') ? 'Approved' : 'Pending')),
       providerUsed: getProviderName(order),
       routingType: String(metadata.routingType ?? '—'),
-      apiResponseStatus: (order.rechargeDetails?.status || order.status) === 'completed' ? 'SUCCESS' : (order.rechargeDetails?.status || order.status) === 'failed' ? 'FAILED' : 'PENDING',
+      apiResponseStatus: getDisplayStatus(order) === 'completed' ? 'SUCCESS' : getDisplayStatus(order) === 'failed' ? 'FAILED' : 'PENDING',
       errorMessage: typeof metadata.errorMessage === 'string' ? metadata.errorMessage : undefined,
       failureReason: String(metadata.errorMessage ?? (order.status === 'failed' ? 'Provider unavailable' : '')),
       retryAttempts: Number(metadata.retryAttempts ?? 0),
@@ -213,9 +251,9 @@ export default function AdminTransactionsPage() {
 
   // Stats
   const totalOrders = transactions.length
-  const completedOrders = transactions.filter(o => o.status === 'completed').length
+  const completedOrders = transactions.filter((o) => getDisplayStatus(o) === 'completed').length
   const totalRevenue = transactions
-    .filter(o => o.status === 'completed')
+    .filter((o) => getDisplayStatus(o) === 'completed')
     .reduce((sum, o) => sum + o.amount, 0)
   const failedOrders = transactions.filter(o => o.status === 'failed').length
 
@@ -332,8 +370,14 @@ export default function AdminTransactionsPage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-semibold text-sm text-neutral-900">{order.user?.name || 'Unknown'}</p>
-                          <p className="text-xs text-muted-foreground">{order.user?.email || '—'}</p>
+                          <p className="font-semibold text-sm text-neutral-900">{getCustomerName(order)}</p>
+                          <p className="text-xs text-muted-foreground">{getCustomerEmail(order)}</p>
+                          {getCustomerPhone(order) !== '—' && getCustomerPhone(order) !== getCustomerName(order) && (
+                            <p className="text-xs text-muted-foreground">{getCustomerPhone(order)}</p>
+                          )}
+                          {getCustomerCountry(order) !== '—' && (
+                            <p className="text-[10px] uppercase tracking-wide text-neutral-400">{getCustomerCountry(order)}</p>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -349,7 +393,7 @@ export default function AdminTransactionsPage() {
                       <TableCell>
                         <div>
                           <p className="font-medium text-sm">
-                            {getPhoneNumber(order)}
+                            {getDestinationPhoneNumber(order)}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             {order.rechargeDetails?.operatorName || order.metadata?.operator_id || order.metadata?.operator || String(order.metadata?.carrierName ?? '—')}
@@ -366,7 +410,7 @@ export default function AdminTransactionsPage() {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell>{getStatusBadge(order.rechargeDetails?.status || order.status)}</TableCell>
+                      <TableCell>{getStatusBadge(getDisplayStatus(order))}</TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {formatDate(order.createdAt)}
                       </TableCell>
@@ -433,7 +477,7 @@ export default function AdminTransactionsPage() {
               <div className="grid grid-cols-4 items-center gap-4 text-sm">
                 <span className="font-semibold text-muted-foreground col-span-1">Customer:</span>
                 <span className="col-span-3 font-medium text-neutral-900">
-                  {refundTransaction.user?.name} ({refundTransaction.user?.email})
+                  {getCustomerName(refundTransaction)} ({getCustomerEmail(refundTransaction) !== '—' ? getCustomerEmail(refundTransaction) : getCustomerPhone(refundTransaction)})
                 </span>
               </div>
               <div className="grid grid-cols-4 items-center gap-4 text-sm">

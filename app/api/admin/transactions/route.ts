@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { adminCanUseFeature } from '@/lib/auth/require-admin-feature'
+import { formatProfilePhone } from '@/lib/auth/build-auth-user'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 
 type TransactionRow = {
@@ -15,6 +16,9 @@ type TransactionRow = {
   profiles: {
     name: string | null
     email: string | null
+    phone: string | null
+    country_code: string | null
+    country: string | null
   } | null
   recharge_orders: Array<{
     product_name: string | null
@@ -28,6 +32,11 @@ type TransactionRow = {
 
 function mapTransaction(row: TransactionRow) {
   const rechargeOrder = row.recharge_orders?.[0] ?? null
+  const profilePhone = formatProfilePhone(row.profiles)
+  const profileName = row.profiles?.name?.trim() || ''
+  const profileEmail = row.profiles?.email?.trim() || ''
+  const profileCountry = row.profiles?.country?.trim() || ''
+
   return {
     id: row.id,
     userId: row.user_id ?? '',
@@ -39,8 +48,10 @@ function mapTransaction(row: TransactionRow) {
     metadata: row.metadata ?? {},
     createdAt: row.created_at,
     user: {
-      name: row.profiles?.name ?? 'Unknown',
-      email: row.profiles?.email ?? '—',
+      name: profileName || profilePhone || 'Unknown',
+      email: profileEmail || '—',
+      phone: profilePhone ?? '—',
+      country: profileCountry || '—',
     },
     rechargeDetails: rechargeOrder ? {
       productName: rechargeOrder.product_name ?? '—',
@@ -64,7 +75,7 @@ export async function GET(request: Request) {
   const statusFilter = status && status !== 'all' ? `status=eq.${encodeURIComponent(status)}&` : ''
 
   const res = await supabaseRest(
-    `transactions?${statusFilter}type=neq.refund&select=id,user_id,type,amount,currency,status,description,metadata,created_at,profiles(name,email),recharge_orders(product_name,sku_code,provider,operator_name,status,phone_number)&order=created_at.desc&limit=${limit}`,
+    `transactions?${statusFilter}type=neq.refund&select=id,user_id,type,amount,currency,status,description,metadata,created_at,profiles(name,email,phone,country_code,country),recharge_orders(product_name,sku_code,provider,operator_name,status,phone_number)&order=created_at.desc&limit=${limit}`,
     { cache: 'no-store' },
   )
   if (!res.ok) return NextResponse.json({ error: 'Failed to load transactions' }, { status: 500 })
