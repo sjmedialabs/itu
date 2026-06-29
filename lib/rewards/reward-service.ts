@@ -1,10 +1,12 @@
 import { supabaseRest } from '@/lib/db/supabase-rest'
+import { convertUsingEurBaseRates } from '@/lib/topup/currency-conversion'
 
 interface RewardRule {
   id: string
   name: string
   trigger: 'FIRST_RECHARGE' | 'MIN_AMOUNT' | 'RECHARGE_COUNT'
   points: number
+  currency?: string
   scope: {
     min_amount?: number
     recharge_count?: number
@@ -87,9 +89,25 @@ export async function processRewardsForTransaction(transactionId: string): Promi
         }
       } else if (rule.trigger === 'MIN_AMOUNT') {
         const minAmount = rule.scope?.min_amount ?? 0
-        if (txn.amount >= minAmount) {
+        let targetMinAmount = minAmount
+        const ruleCurrency = (rule.currency || 'USD').trim().toUpperCase()
+        const txnCurrency = (txn.currency || 'USD').trim().toUpperCase()
+        if (ruleCurrency !== txnCurrency) {
+          const rateRes = await fetch('https://open.er-api.com/v6/latest/EUR', { cache: 'no-store' }).catch(() => null)
+          if (rateRes?.ok) {
+            const rateData = await rateRes.json()
+            const rates = rateData?.rates
+            if (rates) {
+              const converted = convertUsingEurBaseRates(minAmount, ruleCurrency, txnCurrency, rates)
+              if (converted !== null) {
+                targetMinAmount = converted
+              }
+            }
+          }
+        }
+        if (txn.amount >= targetMinAmount) {
           qualified = true
-          reason = `Min Amount Recharge (${txn.amount} >= ${minAmount}): ${rule.name}`
+          reason = `Min Amount Recharge (${txn.amount} >= ${targetMinAmount.toFixed(2)} ${txnCurrency}): ${rule.name}`
         }
       } else if (rule.trigger === 'RECHARGE_COUNT') {
         const targetCount = rule.scope?.recharge_count ?? 1
@@ -183,5 +201,71 @@ export async function processRewardsForTransaction(transactionId: string): Promi
     }
   } catch (err) {
     console.error(`[REWARDS] Error processing rewards for transaction ${transactionId}:`, err)
+  }
+}
+
+export async function redeemPoints(
+  userId: string,
+  transactionId: string | null,
+  pointsToRedeem: number,
+  reason: string,
+): Promise<boolean> {
+  console.log(`[REWARDS] Redeeming ${pointsToRedeem} points for user: ${userId}`)
+  try {
+    const ledgerRes = await supabaseRest('reward_ledger', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: userId,
+        transaction_id: transactionId || null,
+        points: -pointsToRedeem,
+        reason: reason,
+        metadata: {
+          is_redemption: true,
+        },
+      }),
+    })
+    if (!ledgerRes.ok) {
+      console.error(`[REWARDS] Failed to write ledger redemption entry:`, await ledgerRes.text())
+      return false
+    }
+
+    const accountRes = await supabaseRest(
+      `reward_accounts?user_id=eq.${encodeURIComponent(userId)}&select=points_balance&limit=1`,
+      { cache: 'no-store' }
+    )
+    let existingPoints = 0
+    let hasAccount = false
+    if (accountRes.ok) {
+      const accRows = await accountRes.json()
+      if (accRows.length > 0) {
+        existingPoints = accRows[0].points_balance
+        hasAccount = true
+      }
+    }
+
+    const newBalance = Math.max(0, existingPoints - pointsToRedeem)
+
+    let updateAccountRes
+    if (hasAccount) {
+      updateAccountRes = await supabaseRest(`reward_accounts?user_id=eq.${encodeURIComponent(userId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          points_balance: newBalance,
+          updated_at: new Date().toISOString(),
+        }),
+      })
+    } else {
+      updateAccountRes = await supabaseRest('reward_accounts', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: userId,
+          points_balance: newBalance,
+        }),
+      })
+    }
+    return updateAccountRes.ok
+  } catch (err) {
+    console.error(`[REWARDS] Error redeeming points for user ${userId}:`, err)
+    return false
   }
 }
