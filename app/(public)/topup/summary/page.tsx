@@ -75,6 +75,7 @@ function InlineLoginDialog({
   defaultPhone: string
   countryIso: string
 }) {
+  const router = useRouter()
   const dialPrefix = getDialCode(countryIso)
   const { login, setSession } = useAuthStore()
   const fingerprint = useFingerprint()
@@ -485,6 +486,19 @@ function InlineLoginDialog({
             )}
           </TabsContent>
         </Tabs>
+
+        <div className="mt-4 pt-4 border-t border-neutral-100 text-center text-sm text-neutral-500">
+          Don&apos;t have an account?{' '}
+          <button
+            onClick={() => {
+              onOpenChange(false)
+              router.push(`/register?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+            }}
+            className="font-semibold text-[var(--hero-cta-orange)] hover:underline"
+          >
+            Sign up
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
   )
