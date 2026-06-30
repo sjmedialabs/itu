@@ -87,7 +87,13 @@ export async function aggGetProvider(providerId: string): Promise<AggregatorProv
     { cache: 'no-store' },
   )
   const rows = await jsonRows<AggregatorProviderRow>(res)
-  return rows[0] ?? null
+  const row = rows[0] ?? null
+  if (row?.credentials_encrypted) {
+    const { reencryptPlaintextCredentialsAtRest } = await import('@/lib/aggregator/credentials')
+    const updated = await reencryptPlaintextCredentialsAtRest(providerId, row.credentials_encrypted)
+    if (updated) row.credentials_encrypted = updated
+  }
+  return row
 }
 
 export async function aggPatchProvider(providerId: string, patch: Record<string, unknown>) {
