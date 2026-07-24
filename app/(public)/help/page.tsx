@@ -27,21 +27,7 @@ export default function HelpPage() {
           <p className="mt-2 text-sm text-neutral-400 md:text-base">{help.subtitle}</p>
         </div>
 
-        <div className="mx-auto mt-8 max-w-3xl rounded-2xl bg-white px-4 py-4 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.35)] ring-1 ring-black/5 md:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#eef8ff] ring-1 ring-black/5">
-              <Search className="size-5 text-neutral-500" />
-            </div>
-            <Input
-              placeholder={help.searchPlaceholder}
-              className="h-11 rounded-xl border-neutral-200/80 bg-white text-sm shadow-none focus-visible:ring-2 focus-visible:ring-[var(--hero-cta-orange)]/25"
-            />
-            <Button className="h-11 rounded-xl bg-[var(--hero-cta-orange)] px-6 font-semibold text-white hover:brightness-105">
-              Search
-            </Button>
-          </div>
-          <p className="mt-2 text-xs text-neutral-500">Tip: try “receipt”, “wrong number”, “payment”, or “voucher”.</p>
-        </div>
+
 
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {help.quickLinks.map((c) => {
@@ -78,7 +64,7 @@ export default function HelpPage() {
 
           <div className="mt-5 rounded-2xl bg-white p-2 shadow-[0_14px_40px_-28px_rgba(15,23,42,0.35)] ring-1 ring-black/5">
             <Accordion type="single" collapsible>
-              {help.faqs.filter(f => f.isActive).sort((a,b) => a.order - b.order).map((f) => (
+              {help.faqs.filter(f => f.isActive).sort((a, b) => a.order - b.order).map((f) => (
                 <AccordionItem key={f.id} value={f.id} className="border-b border-neutral-200/70 last:border-b-0">
                   <AccordionTrigger className="px-3 text-left text-sm font-semibold text-neutral-900 hover:no-underline">
                     {f.question}
