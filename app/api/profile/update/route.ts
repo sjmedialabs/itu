@@ -29,13 +29,18 @@ export async function POST(req: Request) {
       userId = verifyOtpSessionCookie(cookie)
     }
 
+    const body = (await req.json().catch(() => null)) as { name?: string; phone?: string; userId?: string; image?: string } | null
+    const name = (body?.name ?? '').trim()
+    const phone = (body?.phone ?? '').trim()
+    const image = body?.image
+
+    if (!userId && body?.userId) {
+      userId = body.userId
+    }
+
     if (!userId) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
     }
-
-    const body = (await req.json().catch(() => null)) as { name?: string; phone?: string } | null
-    const name = (body?.name ?? '').trim()
-    const phone = (body?.phone ?? '').trim()
 
     if (!name) {
       return NextResponse.json({ ok: false, error: 'Name is required' }, { status: 400 })
@@ -76,6 +81,7 @@ export async function POST(req: Request) {
         phone: nationalNumber,
         country_code: dialCode,
         country: countryIso,
+        ...(image !== undefined ? { image } : {}),
         updated_at: new Date().toISOString(),
       }),
     })

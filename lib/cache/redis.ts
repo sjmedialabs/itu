@@ -123,6 +123,8 @@ async function ensureConnected(c: Redis, timeoutMs = 800): Promise<void> {
   ])
 }
 
+const devFallbackCache = new Map<string, { val: string; expiresAt: number }>()
+
 export async function cacheGetJson<T>(key: string): Promise<T | null> {
   const l1Raw = l1Get(key)
   if (l1Raw != null) {
@@ -137,6 +139,10 @@ export async function cacheGetJson<T>(key: string): Promise<T | null> {
   const c = getRedisClient()
   if (!c) {
     stats.misses++
+    const entry = devFallbackCache.get(key)
+    if (entry && Date.now() < entry.expiresAt) {
+      return JSON.parse(entry.val) as T
+    }
     return null
   }
   try {
@@ -144,6 +150,10 @@ export async function cacheGetJson<T>(key: string): Promise<T | null> {
     const raw = await c.get(key)
     if (!raw) {
       stats.misses++
+      const entry = devFallbackCache.get(key)
+      if (entry && Date.now() < entry.expiresAt) {
+        return JSON.parse(entry.val) as T
+      }
       return null
     }
     stats.hits++
@@ -152,15 +162,21 @@ export async function cacheGetJson<T>(key: string): Promise<T | null> {
   } catch {
     stats.errors++
     stats.misses++
+    const entry = devFallbackCache.get(key)
+    if (entry && Date.now() < entry.expiresAt) {
+      return JSON.parse(entry.val) as T
+    }
     return null
   }
 }
 
 export async function cacheSetJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  const raw = JSON.stringify(value)
+  devFallbackCache.set(key, { val: raw, expiresAt: Date.now() + ttlSeconds * 1000 })
+
   const c = getRedisClient()
   if (!c) return
   try {
-    const raw = JSON.stringify(value)
     await ensureConnected(c)
     await c.set(key, raw, 'EX', Math.max(1, ttlSeconds))
     l1Set(key, raw)
@@ -172,6 +188,7 @@ export async function cacheSetJson(key: string, value: unknown, ttlSeconds: numb
 
 export async function cacheDel(key: string): Promise<void> {
   l1Del(key)
+  devFallbackCache.delete(key)
   const c = getRedisClient()
   if (!c) return
   try {
