@@ -8,8 +8,9 @@ import { requireCaptcha } from '@/lib/security/recaptcha-guard'
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => null)) as { email?: string; captchaToken?: string } | null
+    const body = (await req.json().catch(() => null)) as { email?: string; captchaToken?: string; isMobile?: boolean } | null
     const email = (body?.email ?? '').trim().toLowerCase()
+    const isMobile = body?.isMobile ?? false
 
     const captcha = await requireCaptcha(req, body?.captchaToken)
     if (!captcha.ok) {
@@ -38,13 +39,16 @@ export async function POST(req: Request) {
     // but don't perform the actual reset token generation and emailing.
     if (!userId) {
       return NextResponse.json({
-        ok: true,
-        message: 'If the email exists, a password reset link has been sent.',
-      })
+        ok: false,
+        error: 'Email does not exist',
+        message: 'Email does not exist',
+      }, { status: 400 })
     }
 
-    // 2. Generate secure token
-    const token = crypto.randomBytes(32).toString('hex')
+    // 2. Generate secure token or 6-digit numeric OTP for mobile
+    const token = isMobile
+      ? String(Math.floor(100000 + Math.random() * 900000))
+      : crypto.randomBytes(32).toString('hex')
 
     // 3. Store in Redis (valid for 15 minutes)
     const ttlSeconds = 15 * 60
@@ -64,8 +68,12 @@ export async function POST(req: Request) {
 
     if (!smtpHost || !smtpUser || !smtpPass || smtpHost === 'smtp.example.com') {
       if (isDev) {
-        console.warn(`[DEV ONLY] SMTP host is placeholder or missing. Logging reset link to console.`)
-        console.log(`\n========================================\n[DEV ONLY] PASSWORD RESET LINK FOR ${email}:\n${resetUrl}\n========================================\n`)
+        console.warn(`[DEV ONLY] SMTP host is placeholder or missing. Logging reset info to console.`)
+        if (isMobile) {
+          console.log(`\n========================================\n[DEV ONLY] MOBILE PASSWORD RESET OTP FOR ${email}:\n${token}\n========================================\n`)
+        } else {
+          console.log(`\n========================================\n[DEV ONLY] PASSWORD RESET LINK FOR ${email}:\n${resetUrl}\n========================================\n`)
+        }
       } else {
         console.error('SMTP configuration is missing or invalid in environment')
         return NextResponse.json({ ok: false, error: 'Email service configuration error' }, { status: 500 })
@@ -84,66 +92,101 @@ export async function POST(req: Request) {
 
         const currentYear = new Date().getFullYear()
 
+        const mailSubject = isMobile ? 'Your ITU password reset OTP code' : 'Reset your ITU password'
+        const mailText = isMobile 
+          ? `Your password reset OTP code is: ${token}. This code is valid for 15 minutes.`
+          : `Please reset your password by visiting: ${resetUrl}. This link is valid for 15 minutes.`
+
+        const mailHtml = isMobile ? `
+          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6fa; padding: 40px 0; color: #333333; line-height: 1.6;">
+            <table cellpadding="0" cellspacing="0" border="0" width="100%" max-width="600" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e1e8ed;">
+              <!-- Header -->
+              <tr>
+                <td style="background-color: #0f172a; padding: 32px; text-align: center;">
+                  <h1 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em;">ITU Support</h1>
+                </td>
+              </tr>
+              <!-- Content -->
+              <tr>
+                <td style="padding: 40px 32px;">
+                  <h2 style="color: #0f172a; font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 16px;">Verify your email</h2>
+                  <p style="color: #4a5568; font-size: 15px; margin-bottom: 24px;">Please use the following 6-digit OTP code to verify your identity and reset your ITU account password:</p>
+                  
+                  <!-- OTP Code -->
+                  <div style="text-align: center; margin: 32px 0;">
+                    <div style="background-color: #f1f5f9; border: 1.5px dashed #E96C32; color: #E96C32; padding: 18px 40px; border-radius: 12px; font-size: 32px; font-weight: 800; display: inline-block; letter-spacing: 6px;">${token}</div>
+                  </div>
+                  
+                  <p style="color: #4a5568; font-size: 14px; margin-bottom: 16px;">This OTP code is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email; your account remains secure.</p>
+                </td>
+              </tr>
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                  <p style="color: #94a3b8; font-size: 11px; margin: 0;">&copy; ${currentYear} ITU. All rights reserved.</p>
+                </td>
+              </tr>
+            </table>
+          </div>
+        ` : `
+          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6fa; padding: 40px 0; color: #333333; line-height: 1.6;">
+            <table cellpadding="0" cellspacing="0" border="0" width="100%" max-width="600" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e1e8ed;">
+              <!-- Header -->
+              <tr>
+                <td style="background-color: #0f172a; padding: 32px; text-align: center;">
+                  <h1 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em;">ITU Support</h1>
+                </td>
+              </tr>
+              <!-- Content -->
+              <tr>
+                <td style="padding: 40px 32px;">
+                  <h2 style="color: #0f172a; font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 16px;">Reset your password</h2>
+                  <p style="color: #4a5568; font-size: 15px; margin-bottom: 24px;">We received a request to reset the password for your ITU account. Click the button below to secure your account and choose a new password.</p>
+                  
+                  <!-- Button -->
+                  <div style="text-align: center; margin: 32px 0;">
+                    <a href="${resetUrl}" style="background-color: #E96C32; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 600; display: inline-block; box-shadow: 0 4px 12px rgba(233, 108, 50, 0.25);">Reset Password</a>
+                  </div>
+                  
+                  <p style="color: #4a5568; font-size: 14px; margin-bottom: 16px;">This link is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email; your account remains secure.</p>
+                  
+                  <div style="border-top: 1px solid #e2e8f0; margin-top: 32px; padding-top: 24px;">
+                    <p style="color: #718096; font-size: 12px; margin-top: 0;">If the button above doesn't work, copy and paste the URL below into your browser:</p>
+                    <p style="color: #3182ce; font-size: 12px; word-break: break-all; margin: 8px 0 0 0;">${resetUrl}</p>
+                  </div>
+                </td>
+              </tr>
+              <!-- Footer -->
+              <tr>
+                <td style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #e2e8f0;">
+                  <p style="color: #94a3b8; font-size: 11px; margin: 0;">&copy; ${currentYear} ITU. All rights reserved.</p>
+                </td>
+              </tr>
+            </table>
+          </div>
+        `
+
         await transporter.sendMail({
           from: `"ITU Support" <${smtpUser}>`,
           to: email,
-          subject: 'Reset your ITU password',
-          text: `Please reset your password by visiting: ${resetUrl}. This link is valid for 15 minutes.`,
-          html: `
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6fa; padding: 40px 0; color: #333333; line-height: 1.6;">
-              <table cellpadding="0" cellspacing="0" border="0" width="100%" max-width="600" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e1e8ed;">
-                <!-- Header -->
-                <tr>
-                  <td style="background-color: #0f172a; padding: 32px; text-align: center;">
-                    <h1 style="color: #ffffff; font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em;">ITU Support</h1>
-                  </td>
-                </tr>
-                <!-- Content -->
-                <tr>
-                  <td style="padding: 40px 32px;">
-                    <h2 style="color: #0f172a; font-size: 20px; font-weight: 600; margin-top: 0; margin-bottom: 16px;">Reset your password</h2>
-                    <p style="color: #4a5568; font-size: 15px; margin-bottom: 24px;">We received a request to reset the password for your ITU account. Click the button below to secure your account and choose a new password.</p>
-                    
-                    <!-- Button -->
-                    <div style="text-align: center; margin: 32px 0;">
-                      <a href="${resetUrl}" style="background-color: #E96C32; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-size: 15px; font-weight: 600; display: inline-block; box-shadow: 0 4px 12px rgba(233, 108, 50, 0.25);">Reset Password</a>
-                    </div>
-                    
-                    <p style="color: #4a5568; font-size: 14px; margin-bottom: 16px;">This link is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email; your account remains secure.</p>
-                    
-                    <div style="border-top: 1px solid #e2e8f0; margin-top: 32px; padding-top: 24px;">
-                      <p style="color: #718096; font-size: 12px; margin-top: 0;">If the button above doesn't work, copy and paste the URL below into your browser:</p>
-                      <p style="color: #3182ce; font-size: 12px; word-break: break-all; margin: 8px 0 0 0;">${resetUrl}</p>
-                    </div>
-                  </td>
-                </tr>
-                <!-- Footer -->
-                <tr>
-                  <td style="background-color: #f8fafc; padding: 24px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
-                    <p style="color: #718096; font-size: 12px; margin: 0;">&copy; ${currentYear} ITU. All rights reserved.</p>
-                  </td>
-                </tr>
-              </table>
-            </div>
-          `,
+          subject: mailSubject,
+          text: mailText,
+          html: mailHtml,
         })
       } catch (mailErr) {
+        console.error('Mail sending error:', mailErr)
+        // Even if mailing fails, return a success message in dev mode to allow testing via console logs
         if (isDev) {
-          console.warn(`[DEV ONLY] Failed to send email via SMTP, logging reset link to console fallback.`, mailErr)
-          console.log(`\n========================================\n[DEV ONLY] PASSWORD RESET LINK FOR ${email}:\n${resetUrl}\n========================================\n`)
+          console.log(`[DEV RUNTIME] Mail failed but logging OTP: ${token}`)
         } else {
-          throw mailErr
+          return NextResponse.json({ ok: false, error: 'Failed to send password reset email' }, { status: 500 })
         }
       }
     }
 
-    return NextResponse.json({
-      ok: true,
-      message: 'If the email exists, a password reset link has been sent.',
-    })
+    return NextResponse.json({ ok: true, message: 'Password reset info sent successfully', ...(isDev ? { token } : {}) })
   } catch (e) {
-    console.error('Password reset request failed:', e)
-    const msg = e instanceof Error ? e.message : 'Password reset request failed'
+    const msg = e instanceof Error ? e.message : 'reset_password_send_failed'
     return NextResponse.json({ ok: false, error: msg }, { status: 500 })
   }
 }
