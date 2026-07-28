@@ -133,7 +133,7 @@
   "pnpm": {
     "overrides": {
       "axios": ">=1.18.0",
-      "brace-expansion": ">=5.0.8",
+      "brace-expansion@>=5.0.0": "5.0.8",
       "form-data": ">=4.0.6",
       "postcss": ">=8.5.12",
       "sharp": ">=0.35.0"
