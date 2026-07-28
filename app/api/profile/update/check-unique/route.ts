@@ -21,17 +21,17 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!userId) {
-      userId = verifyOtpSessionCookie(cookie)
+    const body = (await req.json().catch(() => null)) as { email?: string; phone?: string; userId?: string } | null
+    const email = (body?.email ?? '').trim()
+    const phone = (body?.phone ?? '').trim()
+
+    if (!userId && body?.userId) {
+      userId = body.userId
     }
 
     if (!userId) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
     }
-
-    const body = (await req.json().catch(() => null)) as { email?: string; phone?: string } | null
-    const email = (body?.email ?? '').trim()
-    const phone = (body?.phone ?? '').trim()
 
     const currentProfile = await fetchProfileForUser(userId)
 

@@ -39,18 +39,18 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!userId) {
-      userId = verifyOtpSessionCookie(cookie)
+    const body = (await req.json().catch(() => null)) as { type?: 'email' | 'phone'; value?: string; otp?: string; userId?: string } | null
+    const type = body?.type
+    const value = (body?.value ?? '').trim()
+    const otp = (body?.otp ?? '').trim()
+
+    if (!userId && body?.userId) {
+      userId = body.userId
     }
 
     if (!userId) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
     }
-
-    const body = (await req.json().catch(() => null)) as { type?: 'email' | 'phone'; value?: string; otp?: string } | null
-    const type = body?.type
-    const value = (body?.value ?? '').trim()
-    const otp = (body?.otp ?? '').trim()
 
     if (!type || !value || !otp) {
       return NextResponse.json({ ok: false, error: 'Missing required fields' }, { status: 400 })
