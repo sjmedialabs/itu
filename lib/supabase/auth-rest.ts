@@ -139,5 +139,26 @@ export async function supabaseAdminUpdateUser(
   return { user: json ?? null }
 }
 
+export async function supabaseSignInWithIdToken(payload: {
+  provider: string
+  id_token: string
+  access_token?: string
+}): Promise<{ user: SupabaseUser | null; session: SupabaseSession | null }> {
+  const res = await fetch(`${supabaseAuthBaseUrl()}/auth/v1/token?grant_type=id_token`, {
+    method: 'POST',
+    headers: {
+      apikey: supabaseAnonKey(),
+      Authorization: `Bearer ${supabaseAnonKey()}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    cache: 'no-store',
+  })
+  const json = (await res.json().catch(() => ({}))) as any
+  if (!res.ok) throw new Error(json?.error_description || json?.msg || json?.message || 'google_signin_failed')
+  return { user: json?.user ?? null, session: json ?? null }
+}
+
+
 
 
