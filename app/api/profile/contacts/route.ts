@@ -132,7 +132,7 @@ export async function PATCH(request: Request) {
     }
 
     // Try updating by ID first
-    let res = await supabaseRest(`user_contacts?id=eq.${encodeURIComponent(id)}`, {
+    const res = await supabaseRest(`user_contacts?id=eq.${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: {
         Prefer: 'return=representation',
