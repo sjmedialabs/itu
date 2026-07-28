@@ -311,10 +311,15 @@ export async function POST(req: Request) {
 
     await logLoginAudit({ userId: user?.id, email, status: 'success', ipAddress, country, userAgent })
 
-    const res = NextResponse.json({
+    const responseData: any = {
       ok: true,
       user: clientUser,
-    })
+    }
+    if (source === 'mobile' && session) {
+      responseData.access_token = session.access_token
+      responseData.refresh_token = session.refresh_token
+    }
+    const res = NextResponse.json(responseData)
 
     if (session?.access_token) {
       res.cookies.set('sb-access-token', session.access_token, { ...cookieOptions(), maxAge: 60 * 60 * 24 * 7 })
