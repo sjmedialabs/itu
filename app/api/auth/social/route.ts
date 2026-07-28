@@ -8,10 +8,13 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env
 
 export async function POST(req: Request) {
   try {
-    const { provider, idToken } = (await req.json().catch(() => null)) as {
+    const body = (await req.json().catch(() => null)) as {
       provider?: string
       idToken?: string
     } | null
+
+    const provider = body?.provider
+    const idToken = body?.idToken
 
     if (!provider || !idToken) {
       return NextResponse.json({ ok: false, error: 'Missing provider or idToken' }, { status: 400 })
