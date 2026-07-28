@@ -3,7 +3,7 @@ import { supabaseRest } from '@/lib/db/supabase-rest'
 import { getUserIdFromRequest } from '@/lib/auth/get-user-id-from-request'
 
 async function resolveUserId(request: Request, body?: any): Promise<string | null> {
-  let userId = await getUserIdFromRequest(request)
+  const userId = await getUserIdFromRequest(request)
   if (userId) return userId
 
   const url = new URL(request.url)
