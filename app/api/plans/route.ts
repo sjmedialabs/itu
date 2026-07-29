@@ -65,7 +65,8 @@ export async function GET(request: Request) {
     if (rows.length) await cacheSetJson(cacheKey, payload, 300)
     return NextResponse.json(payload)
   } catch (error) {
-    console.error('plans:', error)
-    return NextResponse.json({ error: 'Failed to load plans' }, { status: 500 })
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('plans error:', error)
+    return NextResponse.json({ error: 'Failed to load plans', details: msg }, { status: 500 })
   }
 }

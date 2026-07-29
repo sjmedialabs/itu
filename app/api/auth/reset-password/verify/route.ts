@@ -16,8 +16,18 @@ export async function POST(req: Request) {
       return captcha.response
     }
 
-    if (!token || !password) {
-      return NextResponse.json({ ok: false, error: 'Missing token or password' }, { status: 400 })
+    if (!token) {
+      return NextResponse.json({ ok: false, error: 'Missing token' }, { status: 400 })
+    }
+
+    // If password is not provided, this is a token validation check (e.g. from mobile app Step 2)
+    if (!password) {
+      const cacheKey = `reset_password:token:${token}`
+      const record = await cacheGetJson<{ userId: string; email: string }>(cacheKey)
+      if (!record || !record.userId) {
+        return NextResponse.json({ ok: false, error: 'Invalid or expired OTP code' }, { status: 400 })
+      }
+      return NextResponse.json({ ok: true, message: 'OTP is valid' })
     }
 
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0]?.trim() || 'unknown'

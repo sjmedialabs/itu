@@ -8,6 +8,7 @@ overrides:
   axios: '>=1.18.0'
   brace-expansion: '>=5.0.8'
   dompurify: '>=3.4.12'
+  brace-expansion@>=5.0.0: 5.0.8
   form-data: '>=4.0.6'
   postcss: '>=8.5.12'
   sharp: '>=0.35.0'
@@ -3070,6 +3071,9 @@ packages:
 
   bintrees@1.0.2:
     resolution: {integrity: sha512-VOMgTMwjAaUG580SXn3LacVgjurrbMme7ZZNYGSSV7mmtY6QQRh0Eg3pwIcntQ77DErK1L0NxkbetjcoXzVwKw==}
+
+  brace-expansion@1.1.16:
+    resolution: {integrity: sha512-IDw48K2/2kRkg9LdJxurvq3lV3aBgq0REY89duEqFRthjlPdXHKMj7EnQOXVckxzgisinf3nHfrcE2FufFLXMw==}
 
   brace-expansion@5.0.8:
     resolution: {integrity: sha512-JZyDyq3D4AUifKTPOB7DELf6XsB3WdPuNxCtob1vFXPsSXhdAiHBWJ/tJ8HAc9aH84BK+5JFZLNkJKx3G9kzQg==}
@@ -8461,6 +8465,11 @@ snapshots:
 
   bintrees@1.0.2: {}
 
+  brace-expansion@1.1.16:
+    dependencies:
+      balanced-match: 1.0.2
+      concat-map: 0.0.1
+
   brace-expansion@5.0.8:
     dependencies:
       balanced-match: 4.0.4
@@ -10401,7 +10410,7 @@ snapshots:
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 5.0.8
+      brace-expansion: 1.1.16
 
   minimist@1.2.8: {}
 

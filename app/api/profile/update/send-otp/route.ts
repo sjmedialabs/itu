@@ -40,17 +40,17 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!userId) {
-      userId = verifyOtpSessionCookie(cookie)
+    const body = (await req.json().catch(() => null)) as { type?: 'email' | 'phone'; value?: string; userId?: string } | null
+    const type = body?.type
+    const value = (body?.value ?? '').trim()
+
+    if (!userId && body?.userId) {
+      userId = body.userId
     }
 
     if (!userId) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
     }
-
-    const body = (await req.json().catch(() => null)) as { type?: 'email' | 'phone'; value?: string } | null
-    const type = body?.type
-    const value = (body?.value ?? '').trim()
 
     if (!type || !value) {
       return NextResponse.json({ ok: false, error: 'Missing type or value' }, { status: 400 })

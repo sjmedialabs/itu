@@ -68,7 +68,8 @@ export async function rateLimit(opts: {
       resetSeconds: Math.max(0, ttl),
     }
   } catch {
-    if (opts.failClosed) {
+    const isDev = process.env.NODE_ENV === 'development' || process.env.APP_ENV === 'development';
+    if (opts.failClosed && !isDev) {
       return { ok: false, remaining: 0, resetSeconds: opts.windowSeconds }
     }
     return { ok: true, remaining: opts.limit, resetSeconds: opts.windowSeconds }
