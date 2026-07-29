@@ -11,6 +11,8 @@ function readCookie(cookieHeader: string, name: string): string {
 }
 
 function readInsecureHeaderUserId(request: Request): string | null {
+  if (process.env.NODE_ENV === 'production') return null
+  if (runtimeEnv('ALLOW_INSECURE_USER_HEADERS') !== 'true') return null
   const headerId = request.headers.get('x-user-id')?.trim() ?? ''
   if (!headerId || !UUID_RE.test(headerId)) return null
   return headerId
@@ -18,15 +20,17 @@ function readInsecureHeaderUserId(request: Request): string | null {
 
 /**
  * Resolve the authenticated user id for payment/checkout APIs.
- * Order: sb-access-token cookie → itu-user-id cookie → (dev only) x-user-id header when ALLOW_INSECURE_USER_HEADERS=true.
+ * Order: sb-access-token cookie / Bearer header → itu-user-id cookie → (dev only) x-user-id header when ALLOW_INSECURE_USER_HEADERS=true.
  *
  * Access-token path uses request/Redis/JWT-local caches (see session-cache) to avoid
  * repeated remote /auth/v1/user calls; invalidation checks are still enforced.
  */
 export async function getUserIdFromRequest(request: Request): Promise<string | null> {
   const cookie = request.headers.get('cookie') ?? ''
+  const authHeader = request.headers.get('authorization') ?? ''
+  const bearerToken = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
 
-  const token = readCookie(cookie, 'sb-access-token')
+  const token = readCookie(cookie, 'sb-access-token') || bearerToken
   if (token) {
     try {
       const userId = await resolveUserIdFromAccessToken(token)

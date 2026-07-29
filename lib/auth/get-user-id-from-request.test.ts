@@ -3,25 +3,29 @@ import { signOtpUserId } from '@/lib/auth/otp-session-cookie'
 
 const USER_ID = '11111111-1111-4111-8111-111111111111'
 
+// Take a snapshot of the original env and update only keys we need.
+const ORIGINAL_ENV = { ...process.env }
+
 function setNodeEnv(value: string) {
-  Object.defineProperty(process.env, 'NODE_ENV', {
-    value,
-    configurable: true,
-    writable: true,
-    enumerable: true,
-  })
+  process.env.NODE_ENV = value
 }
 
 describe('getUserIdFromRequest', () => {
-  const env = process.env
-
   beforeEach(() => {
-    process.env = { ...env, NODE_ENV: 'test', OTP_SESSION_SECRET: 'test-secret' }
+    // set the values we need explicitly
+    process.env.NODE_ENV = 'test'
+    process.env.OTP_SESSION_SECRET = 'test-secret'
     delete process.env.ALLOW_INSECURE_USER_HEADERS
   })
 
   afterAll(() => {
-    process.env = env
+    // Restore original environment safely: remove keys that were added and reset modified values.
+    for (const key of Object.keys(process.env)) {
+      if (!(key in ORIGINAL_ENV)) delete process.env[key]
+    }
+    for (const [k, v] of Object.entries(ORIGINAL_ENV)) {
+      process.env[k] = v as string
+    }
   })
 
   it('rejects an unsigned itu-user-id cookie (forged session)', async () => {
