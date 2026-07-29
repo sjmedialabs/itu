@@ -138,9 +138,10 @@ const NANP_EXCEPTIONS: Record<string, string> = {
   VI: '1-340', // United States Virgin Islands
 }
 
-// Build countries list using libphonenumber-js
-const rawList = getCountries()
-  .map((country) => {
+// Build countries list using libphonenumber-js safely
+let rawList: (CountryItem | null)[] = []
+try {
+  rawList = getCountries().map((country) => {
     try {
       const codeUpper = country.toUpperCase()
       const dialCode = NANP_EXCEPTIONS[codeUpper] || getCountryCallingCode(country)
@@ -154,8 +155,12 @@ const rawList = getCountries()
       return null
     }
   })
+} catch {
+  rawList = []
+}
 
 export const countriesList: CountryItem[] = rawList
   .filter((c): c is CountryItem => c !== null)
   .sort((a, b) => a.name.localeCompare(b.name))
+
 

@@ -459,33 +459,39 @@ export async function fetchPublicOperators(countryInput: string): Promise<Public
   if (!countryIso3) return []
 
   if (await isAggregatorSchemaReady()) {
-    const rows = (await aggListSystemOperators({
-      country: countryIso3,
-      limit: 500,
-      offset: 0,
-      mobileCatalogOnly: true,
-    })) as Array<{
-      id: string
-      system_operator_name: string
-      country_id: string
-      slug?: string
-      logo?: string | null
-      service_domain?: string | null
-      status?: string | null
-    }>
-    return await Promise.all(
-      rows
-        .filter((row) => isMobileCatalogOperator(row))
-        .map(async (row) => ({
-          id: row.id,
-          code: row.id,
-          name: row.system_operator_name,
-          shortName: row.system_operator_name,
-          countryCode: await resolveIso2FromDb(row.country_id),
-          countryIso3: row.country_id,
-          logo: row.logo ?? null,
-        }))
-    )
+    try {
+      const rows = (await aggListSystemOperators({
+        country: countryIso3,
+        limit: 500,
+        offset: 0,
+        mobileCatalogOnly: true,
+      })) as Array<{
+        id: string
+        system_operator_name: string
+        country_id: string
+        slug?: string
+        logo?: string | null
+        service_domain?: string | null
+        status?: string | null
+      }>
+      if (rows && rows.length > 0) {
+        return await Promise.all(
+          rows
+            .filter((row) => isMobileCatalogOperator(row))
+            .map(async (row) => ({
+              id: row.id,
+              code: row.id,
+              name: row.system_operator_name,
+              shortName: row.system_operator_name,
+              countryCode: await resolveIso2FromDb(row.country_id),
+              countryIso3: row.country_id,
+              logo: row.logo ?? null,
+            }))
+        )
+      }
+    } catch {
+      // Fallback to legacy/internal DB queries below
+    }
   }
 
   try {
@@ -735,15 +741,23 @@ export async function fetchPublicPlans(input: {
     }
   }
 
-  if (!plans.length && countryIso3 && operatorId && !(await isAggregatorSchemaReady())) {
-    plans = await listPlansFromInternalPlans(countryIso3, operatorId)
+  if (!plans.length && countryIso3 && operatorId) {
+    try {
+      plans = await listPlansFromInternalPlans(countryIso3, operatorId)
+    } catch {
+      plans = []
+    }
   }
 
-  if (!plans.length && countryIso3 && operatorName && !(await isAggregatorSchemaReady())) {
-    plans = await listPlansFromInternalPlansByName(countryIso3, operatorName)
+  if (!plans.length && countryIso3 && operatorName) {
+    try {
+      plans = await listPlansFromInternalPlansByName(countryIso3, operatorName)
+    } catch {
+      plans = []
+    }
   }
 
-  if (!plans.length && operatorId && !(await isAggregatorSchemaReady())) {
+  if (!plans.length && operatorId) {
     try {
       const iso2 = countryIso3 ? toPublicCountryCode(countryIso3) : (input.countryCode ?? 'IN')
       const legacy = await dbFetchPlans(iso2, operatorId)
