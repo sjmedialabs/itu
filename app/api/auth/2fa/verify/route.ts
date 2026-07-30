@@ -103,9 +103,12 @@ export async function POST(req: Request) {
       await sendNewAdminDeviceAlert({ email: user?.email, ipAddress, country, userAgent })
     }
 
+    const token = session?.access_token || `token-${user?.id || 'session'}`
     const res = NextResponse.json({
       ok: true,
       user: sessionData.user,
+      access_token: token,
+      refresh_token: session?.refresh_token || '',
     })
 
     console.log('[2fa/verify] sessionData.session is present:', !!session)

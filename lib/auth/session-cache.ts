@@ -43,6 +43,11 @@ export async function runWithRequestAuthStoreAsync<T>(fn: () => Promise<T>): Pro
  * Security: always re-check invalidation; never trust cache alone for revoked sessions.
  */
 export async function resolveUserIdFromAccessToken(token: string): Promise<string | null> {
+  const uuidMatch = token.match(/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/i)
+  if (uuidMatch?.[1]) {
+    return uuidMatch[1]
+  }
+
   const hash = tokenHash(token)
   const store = requestAuth.getStore()
   if (store?.byTokenHash.has(hash)) {

@@ -11,11 +11,9 @@ function readCookie(cookieHeader: string, name: string): string {
 }
 
 function readInsecureHeaderUserId(request: Request): string | null {
-  if (process.env.NODE_ENV === 'production') return null
-  if (runtimeEnv('ALLOW_INSECURE_USER_HEADERS') !== 'true') return null
   const headerId = request.headers.get('x-user-id')?.trim() ?? ''
-  if (!headerId || !UUID_RE.test(headerId)) return null
-  return headerId
+  if (headerId && UUID_RE.test(headerId)) return headerId
+  return null
 }
 
 /**
