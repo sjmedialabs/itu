@@ -91,11 +91,24 @@ export async function POST(req: Request) {
       console.error('OTP check/insert profile database error:', e)
     }
 
-    const res = NextResponse.json({ ok: true, user: { id: userId, phone } })
+    const token = `token-${userId}`
+    const res = NextResponse.json({
+      ok: true,
+      user: { id: userId, phone },
+      access_token: token,
+      refresh_token: '',
+    })
     const cookieSecure =
       process.env.NODE_ENV === 'production' &&
       process.env.COOKIE_SECURE !== 'false'
     res.cookies.set('itu-user-id', signOtpUserId(userId), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: cookieSecure,
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    })
+    res.cookies.set('sb-access-token', token, {
       httpOnly: true,
       sameSite: 'lax',
       secure: cookieSecure,

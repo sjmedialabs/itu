@@ -123,7 +123,9 @@ async function ensureConnected(c: Redis, timeoutMs = 800): Promise<void> {
   ])
 }
 
-const devFallbackCache = new Map<string, { val: string; expiresAt: number }>()
+const devFallbackCache: Map<string, { val: string; expiresAt: number }> =
+  (globalThis as any).__itu_dev_fallback_cache ||
+  ((globalThis as any).__itu_dev_fallback_cache = new Map())
 
 export async function cacheGetJson<T>(key: string): Promise<T | null> {
   const l1Raw = l1Get(key)
