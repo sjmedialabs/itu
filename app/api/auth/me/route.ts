@@ -40,8 +40,22 @@ export async function GET(req: Request) {
     }
   }
 
-  const user = await supabaseGetUser(token)
-  console.log('[auth/me] supabaseGetUser result:', !!user?.id)
+  const uuidMatch = token.match(/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/i)
+  let user: any = null
+
+  if (uuidMatch?.[1]) {
+    const profile = await fetchProfileForUser(uuidMatch[1])
+    if (!profile?.id) return NextResponse.json({ ok: true, user: null })
+    user = {
+      id: profile.id,
+      email: String(profile.email ?? ''),
+      user_metadata: { name: String(profile.name ?? '') },
+    }
+  } else {
+    user = await supabaseGetUser(token)
+  }
+
+  console.log('[auth/me] user result:', !!user?.id)
   if (!user?.id) return NextResponse.json({ ok: true, user: null })
 
   if (await isAccessTokenInvalidated(user.id, token)) {

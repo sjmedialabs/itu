@@ -44,7 +44,7 @@ export async function onRequestError(
 ) {
   const { logger } = await import('@/lib/observability/logger')
   const { captureException } = await import('@/lib/observability/sentry')
-  const requestId = request.headers.get('x-request-id') || undefined
+  const requestId = typeof request?.headers?.get === 'function' ? request.headers.get('x-request-id') : undefined
   logger.error('next_request_error', {
     route: request.path,
     method: request.method,
