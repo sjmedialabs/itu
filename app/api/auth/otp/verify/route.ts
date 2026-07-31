@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     let profileAvatar = ''
     try {
       const pRes = await supabaseRest(
-        `profiles?id=eq.${encodeURIComponent(userId)}&select=name,email,country,country_code,currency,avatar_url&limit=1`,
+        `profiles?id=eq.${encodeURIComponent(userId)}&select=name,email,country,country_code,currency,image&limit=1`,
         { cache: 'no-store' },
       )
       if (pRes.ok) {
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
           profileEmail = p.email || ''
           profileCountry = p.country || countryIso
           profileCurrency = p.currency || ''
-          profileAvatar = p.avatar_url || ''
+          profileAvatar = p.image || ''
         }
       }
     } catch {

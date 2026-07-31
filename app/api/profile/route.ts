@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     if (!phone) {
       try {
         const res = await supabaseRest(
-          `profiles?id=eq.${encodeURIComponent(userId)}&select=phone,country_code,country,currency,avatar_url&limit=1`,
+          `profiles?id=eq.${encodeURIComponent(userId)}&select=phone,country_code,country,currency,image&limit=1`,
           { cache: 'no-store' },
         )
         if (res.ok) {
@@ -43,6 +43,8 @@ export async function GET(request: Request) {
       ? (countryCode ? `+${countryCode}${phone}` : phone)
       : ''
 
+    const avatar = profile.image || ''
+
     return NextResponse.json({
       profile: {
         id: userId,
@@ -52,8 +54,8 @@ export async function GET(request: Request) {
         country: profile.country || '',
         country_code: countryCode,
         currency: profile.currency || '',
-        avatar: profile.avatar_url || '',
-        avatar_url: profile.avatar_url || '',
+        avatar,
+        avatar_url: avatar,
         app_role: profile.app_role || 'user',
       },
     })
