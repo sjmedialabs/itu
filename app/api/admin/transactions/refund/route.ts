@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { requireAnyAdminPermission } from '@/lib/auth/require-admin-permission'
 import { getUserIdFromRequest } from '@/lib/auth/get-user-id-from-request'
 import { processAdminWalletRefund } from '@/lib/admin/process-wallet-refund'
+import { sendFcmPushToUser } from '@/lib/notifications/fcm-service'
+import { supabaseRest } from '@/lib/db/supabase-rest'
 
 /**
  * Admin wallet refund for failed recharge delivery.
@@ -36,6 +38,34 @@ export async function POST(request: Request) {
         { ok: false, error: result.error, code: result.code },
         { status: result.status },
       )
+    }
+
+    // Send FCM Push notification to user on new successful refund
+    if (result.ok && !result.idempotent && result.transactionId) {
+      supabaseRest(
+        `transactions?id=eq.${encodeURIComponent(result.transactionId)}&select=user_id&limit=1`,
+        { cache: 'no-store' }
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .then((rows) => {
+          const userId = rows?.[0]?.user_id
+          if (userId) {
+            const formattedAmount =
+              result.amount != null ? `${result.currency || ''} ${result.amount}`.trim() : 'amount'
+            sendFcmPushToUser({
+              userId,
+              title: 'Refund Credit Received',
+              body: `Your refund of ${formattedAmount} has been credited to your wallet.`,
+              data: {
+                type: 'amount_refunded',
+                transactionId: result.transactionId,
+                amount: String(result.amount ?? ''),
+                currency: String(result.currency ?? ''),
+              },
+            }).catch((err) => console.error('[FCM] Error sending refund push:', err))
+          }
+        })
+        .catch((err) => console.error('[FCM] Failed to query user for refund push:', err))
     }
 
     return NextResponse.json({
