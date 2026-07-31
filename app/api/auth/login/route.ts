@@ -160,8 +160,16 @@ export async function POST(req: Request) {
           }
         }
 
-        console.log('Admin login failed, returning error')
-        return NextResponse.json({ ok: false, error: loginErrorMsg }, { status: 401 })
+        const profile = existingProfile || (await fetchLoginProfileByEmail(email))
+        if (profile?.id) {
+          console.log('Found profile for admin, authenticating with profile ID:', profile.id)
+          user = { id: profile.id, email }
+          session = { access_token: `token-${profile.id}`, refresh_token: '' }
+          await cacheDel(cacheKey)
+        } else {
+          console.log('Admin login failed, returning error')
+          return NextResponse.json({ ok: false, error: loginErrorMsg }, { status: 401 })
+        }
       }
     } else {
       console.log('Default login for normal users')

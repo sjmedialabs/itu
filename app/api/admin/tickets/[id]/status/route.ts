@@ -4,7 +4,7 @@ import { getTicketAdmin, setTicketStatus } from '@/lib/tickets/db-persistence'
 import type { TicketStatus } from '@/lib/tickets/types'
 import { logAdminActivity } from '@/lib/auth/audit'
 import { notifyStatusUpdate } from '@/lib/tickets/socket-notifier'
-import { sendFcmPushToUser } from '@/lib/notifications/fcm-service'
+import { createUserNotification } from '@/lib/notifications/user-notifications'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -32,19 +32,13 @@ export async function PATCH(request: Request, context: Ctx) {
 
     if (ticket) {
       await notifyStatusUpdate(ticketId, ticket.status)
-
-      // If status changed to resolved, send mobile FCM notification to user
-      if (ticket.status === 'resolved' && existing.status !== 'resolved' && ticket.userId) {
-        sendFcmPushToUser({
-          userId: ticket.userId,
-          title: 'Support Ticket Resolved',
-          body: `Your ticket "${ticket.subject}" (#${ticket.id.slice(0, 8)}) has been marked as resolved.`,
-          data: {
-            type: 'ticket_resolved',
-            ticketId: ticket.id,
-          },
-        }).catch((err) => console.error('[FCM] Error sending ticket resolution push:', err))
-      }
+      await createUserNotification({
+        userId: existing.userId,
+        title: 'Ticket Status Updated',
+        message: `Your ticket "${existing.subject}" status changed to ${status.toUpperCase().replace('_', ' ')}.`,
+        type: 'support_ticket_status',
+        details: { ticketId, status, ticketSubject: existing.subject },
+      }).catch((err) => console.warn('Failed to send user notification on status update:', err))
     }
 
     await logAdminActivity({

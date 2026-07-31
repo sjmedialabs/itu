@@ -325,12 +325,13 @@ export async function createTicket(input: {
   }
 }
 
-export async function listTicketsForUser(userId: string): Promise<Ticket[]> {
+export async function listTicketsForUser(userId: string, userEmail?: string): Promise<Ticket[]> {
   try {
-    const res = await supabaseRest(
-      `support_tickets?user_id=eq.${encode(userId)}&select=${TICKET_SELECT}&order=updated_at.desc`,
-      { cache: 'no-store' },
-    )
+    let queryPath = `support_tickets?user_id=eq.${encode(userId)}&select=${TICKET_SELECT}&order=updated_at.desc`
+    if (userEmail && userEmail.trim()) {
+      queryPath = `support_tickets?or=(user_id.eq.${encode(userId)},user_email.eq.${encode(userEmail.trim().toLowerCase())})&select=${TICKET_SELECT}&order=updated_at.desc`
+    }
+    const res = await supabaseRest(queryPath, { cache: 'no-store' })
     if (!res.ok) {
       const err = await ticketQueryError(res, 'Failed to load tickets')
       if (shouldFallbackToFile(err)) {

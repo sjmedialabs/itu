@@ -55,7 +55,7 @@ const nextConfig = {
   allowedDevOrigins: [
     'localhost',
     '127.0.0.1',
-    '192.168.1.7',
+    '192.168.1.39',
     '192.168.1.13',
     '194.164.150.223',
     ...(process.env.ALLOWED_DEV_ORIGINS

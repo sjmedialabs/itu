@@ -3,7 +3,7 @@ import { generateOtp, storeOtp } from '@/lib/security/otp'
 import { shouldExposeDevOtp } from '@/lib/security/expose-dev-otp'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { runtimeEnv } from '@/lib/env/runtime'
-import nodemailer from 'nodemailer'
+import { sendEmail } from '@/lib/email/mailer'
 import { supabaseGetUser } from '@/lib/supabase/auth-rest'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { fetchProfileForUser } from '@/lib/auth/get-admin-from-request'
@@ -113,57 +113,22 @@ export async function POST(req: Request) {
     const exposeOtp = shouldExposeDevOtp()
 
     if (type === 'email') {
-      const smtpHost = runtimeEnv('SMTP_HOST')
-      const smtpPort = parseInt(runtimeEnv('SMTP_PORT') || '587', 10)
-      const smtpUser = runtimeEnv('SMTP_USER')
-      const smtpPass = runtimeEnv('SMTP_PASS')
-
-      if (!smtpHost || !smtpUser || !smtpPass || smtpHost === 'smtp.example.com') {
-        if (exposeOtp) {
-          console.warn(`[DEV ONLY] SMTP host is placeholder or missing. Logging OTP to console.`)
-          console.log(`\n========================================\n[DEV ONLY] PROFILE UPDATE OTP FOR ${value}: ${otp}\n========================================\n`)
-        } else {
-          console.error('SMTP configuration is missing or invalid in environment')
-          return NextResponse.json({ ok: false, error: 'Email service configuration error' }, { status: 500 })
-        }
-      } else {
-        try {
-          const transporter = nodemailer.createTransport({
-            host: smtpHost,
-            port: smtpPort,
-            secure: smtpPort === 465,
-            auth: {
-              user: smtpUser,
-              pass: smtpPass,
-            },
-          })
-
-          await transporter.sendMail({
-            from: `"ITU Support" <${smtpUser}>`,
-            to: value,
-            subject: 'Verify your ITU email change',
-            text: `Your OTP is: ${otp}. It is valid for 5 minutes.`,
-            html: `
-              <div style="font-family: sans-serif; padding: 20px; color: #333;">
-                <h2>Email Change Verification</h2>
-                <p>Please use the following One-Time Password (OTP) to verify your new email address:</p>
-                <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
-                  ${otp}
-                </div>
-                <p>This code is valid for 5 minutes.</p>
-                <p>If you did not request this change, please ignore this email.</p>
-              </div>
-            `,
-          })
-        } catch (mailErr) {
-          if (exposeOtp) {
-            console.warn(`[DEV ONLY] Failed to send email via SMTP, logging OTP as fallback.`, mailErr)
-            console.log(`\n========================================\n[DEV ONLY] PROFILE UPDATE OTP FOR ${value}: ${otp}\n========================================\n`)
-          } else {
-            throw mailErr
-          }
-        }
-      }
+      await sendEmail({
+        to: value,
+        subject: 'Verify your ITU email change',
+        text: `Your OTP is: ${otp}. It is valid for 5 minutes.`,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333;">
+            <h2>Email Change Verification</h2>
+            <p>Please use the following One-Time Password (OTP) to verify your new email address:</p>
+            <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
+              ${otp}
+            </div>
+            <p>This code is valid for 5 minutes.</p>
+            <p>If you did not request this change, please ignore this email.</p>
+          </div>
+        `,
+      })
     }
 
     if (exposeOtp) {
