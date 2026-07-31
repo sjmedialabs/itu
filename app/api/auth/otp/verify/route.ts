@@ -92,9 +92,44 @@ export async function POST(req: Request) {
     }
 
     const token = `token-${userId}`
+
+    // Fetch full profile to return enriched user data
+    let profileName = `+${dialCode} ${nationalNumber}`
+    let profileEmail = ''
+    let profileCountry = countryIso
+    let profileCurrency = ''
+    let profileAvatar = ''
+    try {
+      const pRes = await supabaseRest(
+        `profiles?id=eq.${encodeURIComponent(userId)}&select=name,email,country,country_code,currency,avatar_url&limit=1`,
+        { cache: 'no-store' },
+      )
+      if (pRes.ok) {
+        const pRows = (await pRes.json().catch(() => [])) as any[]
+        const p = pRows[0]
+        if (p) {
+          profileName = p.name || profileName
+          profileEmail = p.email || ''
+          profileCountry = p.country || countryIso
+          profileCurrency = p.currency || ''
+          profileAvatar = p.avatar_url || ''
+        }
+      }
+    } catch {
+      /* profile enrichment optional */
+    }
+
     const res = NextResponse.json({
       ok: true,
-      user: { id: userId, phone },
+      user: {
+        id: userId,
+        phone,
+        name: profileName,
+        email: profileEmail,
+        country: profileCountry,
+        currency: profileCurrency,
+        avatar: profileAvatar,
+      },
       access_token: token,
       refresh_token: '',
     })

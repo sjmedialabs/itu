@@ -4,6 +4,7 @@ import { addMessage, bumpToInProgressIfNeeded, getTicketAdmin } from '@/lib/tick
 import type { Ticket } from '@/lib/tickets/types'
 import { logAdminActivity } from '@/lib/auth/audit'
 import { notifyNewMessage, notifyStatusUpdate } from '@/lib/tickets/socket-notifier'
+import { createUserNotification } from '@/lib/notifications/user-notifications'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -39,6 +40,15 @@ export async function POST(request: Request, context: Ctx) {
     }
 
     await notifyStatusUpdate(ticketId, updated.status)
+
+    // Trigger notification to user
+    await createUserNotification({
+      userId: updated.userId,
+      title: 'Support Agent Replied',
+      message: `Support agent replied to your ticket "${updated.subject}": ${message.slice(0, 100)}`,
+      type: 'support_ticket_reply',
+      details: { ticketId, ticketSubject: updated.subject },
+    }).catch((err) => console.warn('Failed to send user notification on ticket response:', err))
 
     const ticketOut: Ticket = {
       id: updated.id,
