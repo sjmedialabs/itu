@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { cacheSetJson, cacheGetJson, cacheDel } from '@/lib/cache/redis'
 
-const OTP_TTL_SECONDS = 5 * 60
+const OTP_TTL_SECONDS = 30
 
 function otpKey(phone: string) {
   return `otp:v1:${phone}`

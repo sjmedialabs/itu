@@ -1,6 +1,7 @@
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { runtimeEnv } from '@/lib/env/runtime'
 import { shouldExposeDevOtp } from '@/lib/security/expose-dev-otp'
+import { sendEmail } from '@/lib/email/mailer'
 import nodemailer from 'nodemailer'
 import { UAParser } from 'ua-parser-js'
 import { cookies, headers } from 'next/headers'
@@ -231,11 +232,7 @@ export async function sendSuperAdminLockoutAlert({
 }
 
 export async function sendLoginOtp({ email, otp }: { email: string; otp: string }) {
-  const smtpHost = runtimeEnv('SMTP_HOST')
-  const smtpPort = parseInt(runtimeEnv('SMTP_PORT') || '587', 10)
-  const smtpUser = runtimeEnv('SMTP_USER')
-  const smtpPass = runtimeEnv('SMTP_PASS')
-  const exposeOtp = shouldExposeDevOtp()
+  console.log(`\n========================================\n[DEV MODE] OTP: ${otp}\n[DEV ONLY] LOGIN OTP FOR ${email}: ${otp}\n========================================\n`)
 
   const html = `
     <div style="font-family: sans-serif; padding: 20px; color: #333;">
@@ -244,39 +241,18 @@ export async function sendLoginOtp({ email, otp }: { email: string; otp: string 
       <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
         ${otp}
       </div>
-      <p>This code is valid for 15 minutes.</p>
+      <p>This code is valid for 30 seconds.</p>
     </div>
   `
 
-  if (exposeOtp) {
-    console.log(`\n========================================\n[DEV ONLY] LOGIN OTP FOR ${email}: ${otp}\n========================================\n`)
-  }
-
-  if (!smtpHost || !smtpUser || !smtpPass || smtpHost === 'smtp.example.com') {
-    return
-  }
-
   try {
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    })
-
-    await transporter.sendMail({
-      from: `"ITU Security" <${smtpUser}>`,
+    await sendEmail({
       to: email,
       subject: 'Your Login Verification Code',
+      text: `Your login OTP verification code is: ${otp}. It is valid for 30 seconds.`,
       html,
     })
   } catch (mailErr) {
-    if (exposeOtp) {
-      console.log(`\n========================================\n[DEV ONLY] LOGIN OTP FOR ${email}: ${otp}\n========================================\n`)
-    }
     console.error('Failed to send login OTP:', mailErr)
   }
 }

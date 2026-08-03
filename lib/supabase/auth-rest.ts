@@ -7,7 +7,7 @@ function supabaseAuthBaseUrl(): string {
 }
 
 function supabaseAnonKey(): string {
-  const k = runtimeEnv('SUPABASE_ANON_KEY')
+  const k = runtimeEnv('SUPABASE_ANON_KEY') || runtimeEnv('ANON_KEY') || runtimeEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
   if (!k) throw new Error('SUPABASE_ANON_KEY missing')
   return k
 }
