@@ -10,7 +10,7 @@ import {
   profilePhoneExists,
   PROFILE_PHONE_EXISTS_MESSAGE,
 } from '@/lib/auth/profile-phone'
-import nodemailer from 'nodemailer'
+import { sendEmail } from '@/lib/email/mailer'
 import { requireCaptcha } from '@/lib/security/recaptcha-guard'
 
 type PendingRegisterRecord = {
@@ -98,63 +98,24 @@ export async function POST(req: Request) {
     const cacheKey = `pending_register:v1:${email}`
     await cacheSetJson(cacheKey, { email, password, name, otp, ...phoneFields }, ttlSeconds)
 
-    // 4. Send email with OTP via nodemailer
-    const smtpHost = runtimeEnv('SMTP_HOST')
-    const smtpPort = parseInt(runtimeEnv('SMTP_PORT') || '587', 10)
-    const smtpUser = runtimeEnv('SMTP_USER')
-    const smtpPass = runtimeEnv('SMTP_PASS')
+    // 4. Send email with OTP (Resend SDK / SMTP / dev console fallback)
     const exposeOtp = shouldExposeDevOtp()
-
-    if (!smtpHost || !smtpUser || !smtpPass || smtpHost === 'smtp.example.com') {
-      if (exposeOtp) {
-        console.warn(`[DEV ONLY] SMTP host is placeholder or missing. Logging OTP to console.`)
-        console.log(`\n========================================\n[DEV ONLY] REGISTRATION OTP FOR ${email}: ${otp}\n========================================\n`)
-      } else {
-        console.error('SMTP configuration is missing or invalid in environment')
-        return NextResponse.json({ ok: false, error: 'Email service configuration error' }, { status: 500 })
-      }
-    } else {
-      try {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: smtpPort,
-          secure: smtpPort === 465,
-          auth: {
-            user: smtpUser,
-            pass: smtpPass,
-          },
-        })
-
-        await transporter.sendMail({
-          from: `"ITU Support" <${smtpUser}>`,
-          to: email,
-          subject: 'Verify your ITU registration',
-          text: `Your OTP is: ${otp}. It is valid for 15 minutes.`,
-          html: `
-            <div style="font-family: sans-serif; padding: 20px; color: #333;">
-              <h2>Welcome to ITU!</h2>
-              <p>Please use the following One-Time Password (OTP) to complete your registration:</p>
-              <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
-                ${otp}
-              </div>
-              <p>This code is valid for 15 minutes.</p>
-              <p>If you did not request this code, please ignore this email.</p>
-            </div>
-          `,
-        })
-      } catch (mailErr) {
-        if (exposeOtp) {
-          console.warn(`[DEV ONLY] Failed to send email via SMTP, logging OTP to console fallback.`, mailErr)
-          console.log(`\n========================================\n[DEV ONLY] REGISTRATION OTP FOR ${email}: ${otp}\n========================================\n`)
-        } else {
-          throw mailErr
-        }
-      }
-    }
-
-    if (exposeOtp) {
-      console.log(`\n========================================\n[DEV ONLY] REGISTRATION OTP FOR ${email}: ${otp}\n========================================\n`)
-    }
+    await sendEmail({
+      to: email,
+      subject: 'Verify your ITU registration',
+      text: `Your OTP is: ${otp}. It is valid for 15 minutes.`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; color: #333;">
+          <h2>Welcome to ITU!</h2>
+          <p>Please use the following One-Time Password (OTP) to complete your registration:</p>
+          <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
+            ${otp}
+          </div>
+          <p>This code is valid for 15 minutes.</p>
+          <p>If you did not request this code, please ignore this email.</p>
+        </div>
+      `,
+    })
 
     return NextResponse.json({
       ok: true,

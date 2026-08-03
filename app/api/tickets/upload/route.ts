@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { resolveUserIdFromAccessToken } from '@/lib/auth/session-cache'
-import { verifyOtpSessionCookie } from '@/lib/auth/otp-session-cookie'
+import { getUserIdFromRequest } from '@/lib/auth/get-user-id-from-request'
 import {
   sanitizeStorageFileName,
   STORAGE_BUCKETS,
@@ -9,18 +8,8 @@ import {
 
 export async function POST(req: Request) {
   try {
-    const cookie = req.headers.get('cookie') ?? ''
-    const m = cookie.match(/(?:^|;\s*)sb-access-token=([^;]+)/)
-    let userId: string | null = null
-
-    const token = m?.[1] ? decodeURIComponent(m[1]) : ''
-    if (token) {
-      userId = await resolveUserIdFromAccessToken(token)
-    }
-
-    if (!userId) {
-      userId = verifyOtpSessionCookie(cookie)
-    }
+    // Resolve user via cookie / Bearer header / x-user-id (same as other API routes)
+    const userId = await getUserIdFromRequest(req)
 
     if (!userId) {
       return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })

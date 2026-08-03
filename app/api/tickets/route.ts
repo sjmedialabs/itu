@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getRequestUser } from '@/lib/tickets/auth-headers'
 import { createTicket, listTicketsForUser } from '@/lib/tickets/db-persistence'
 import { createAdminNotification } from '@/lib/notifications/admin-notifications'
+import { createUserNotification } from '@/lib/notifications/user-notifications'
 import { SUPPORT_BOT_CATEGORIES } from '@/lib/support-bot/qa'
 
 export async function GET(request: Request) {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const tickets = await listTicketsForUser(user.id)
+    const tickets = await listTicketsForUser(user.id, user.email)
     return NextResponse.json({ tickets })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Server error'
@@ -75,6 +76,14 @@ export async function POST(request: Request) {
       type: 'support_ticket_raised',
       details: { ticketId: ticket.id, userId: user.id, email: user.email, subject, category },
     })
+
+    await createUserNotification({
+      userId: user.id,
+      title: 'Support Ticket Submitted',
+      message: `Your ticket "${subject}" has been submitted successfully. Our support team will get back to you soon.`,
+      type: 'support_ticket_status',
+      details: { ticketId: ticket.id, ticketSubject: subject },
+    }).catch(() => {})
 
     return NextResponse.json({ ticket })
   } catch (e) {

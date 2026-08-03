@@ -3,6 +3,8 @@ import { getRequestUser } from '@/lib/tickets/auth-headers'
 import { addMessage, getTicketForUser } from '@/lib/tickets/db-persistence'
 import { notifyNewMessage } from '@/lib/tickets/socket-notifier'
 
+import { matchSupportBotAnswer, formatBotTicketReply } from '@/lib/support-bot/qa'
+
 type Ctx = { params: Promise<{ id: string }> }
 
 export async function POST(request: Request, context: Ctx) {
@@ -29,8 +31,21 @@ export async function POST(request: Request, context: Ctx) {
     }
 
     const msg = await addMessage({ ticketId, senderType: 'user', message })
-    await notifyNewMessage(ticketId, msg)
-    return NextResponse.json({ message: msg })
+    await notifyNewMessage(ticketId, msg).catch(() => {})
+
+    let botMsg = null
+    try {
+      const { best } = await matchSupportBotAnswer(message, { category: existing.category })
+      if (best && best.score >= 0.35) {
+        const botReplyText = formatBotTicketReply(best)
+        botMsg = await addMessage({ ticketId, senderType: 'bot', message: botReplyText })
+        await notifyNewMessage(ticketId, botMsg).catch(() => {})
+      }
+    } catch {
+      /* bot match optional */
+    }
+
+    return NextResponse.json({ message: msg, botMessage: botMsg })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Server error'
     return NextResponse.json({ error: msg }, { status: 500 })
