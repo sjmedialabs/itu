@@ -32,8 +32,8 @@ export async function POST(req: Request) {
     // Generate a new OTP
     const otp = generateOtp()
 
-    // Update the OTP in Redis and extend TTL to 15 minutes (900 seconds)
-    const ttlSeconds = 15 * 60
+    // Update the OTP in Redis and extend TTL to 30 seconds
+    const ttlSeconds = 30
     await cacheSetJson(cacheKey, { ...record, otp }, ttlSeconds)
 
     // Send the new OTP to the user's email via Resend/SMTP/Dev logger
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     await sendEmail({
       to: email,
       subject: 'Verify your ITU registration - New OTP',
-      text: `Your new OTP is: ${otp}. It is valid for 15 minutes.`,
+      text: `Your new OTP is: ${otp}. It is valid for 30 seconds.`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
           <h2>ITU Email Verification</h2>
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
           <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
             ${otp}
           </div>
-          <p>This code is valid for 15 minutes.</p>
+          <p>This code is valid for 30 seconds.</p>
           <p>If you did not request this code, please ignore this email.</p>
         </div>
       `,

@@ -99,6 +99,13 @@ export async function POST(req: Request) {
     }
     // 1. Fetch profile to check role and is_active status
     const existingProfile = await fetchLoginProfileByEmail(email)
+    if (!existingProfile) {
+      return NextResponse.json(
+        { ok: false, success: false, error: 'email is not existing please sign in', message: 'email is not existing please sign in' },
+        { status: 401 }
+      )
+    }
+
     const isAdmin = isStaffAppRole(existingProfile?.app_role, email)
     // 2. Reject frozen admin accounts immediately
     if (isAdmin && existingProfile?.is_active === false) {
@@ -116,6 +123,9 @@ export async function POST(req: Request) {
       try {
         console.log('Attempting admin login')
         const authData = await supabaseSignInWithPassword({ email, password })
+        if (!authData?.user) {
+          throw new Error('Invalid credentials')
+        }
         console.log('Admin login successful')
         user = authData.user
         session = authData.session
@@ -124,7 +134,6 @@ export async function POST(req: Request) {
         const cacheKey = `admin_failed_attempts:${email}`
         await cacheDel(cacheKey)
       } catch (err: any) {
-        const loginErrorMsg = err?.message || 'Login failed'
         await logLoginAudit({ userId: existingProfile?.id, email, status: 'failed', ipAddress, country, userAgent })
         console.log('Admin login failed, logging audit')
         const cacheKey = `admin_failed_attempts:${email}`
@@ -136,7 +145,7 @@ export async function POST(req: Request) {
           const isSuperAdminSource = existingProfile.app_role === 'super_admin' && source === 'admin'
           if (isSuperAdminSource) {
             console.log('Super admin source detected, sending email warning alert')
-              // Send email warning alert instead of freezing
+            // Send email warning alert instead of freezing
             await sendSuperAdminLockoutAlert({ email, ipAddress, country, userAgent })
           } else {
             console.log('Freezing admin account')
@@ -160,40 +169,30 @@ export async function POST(req: Request) {
           }
         }
 
-        const profile = existingProfile || (await fetchLoginProfileByEmail(email))
-        if (profile?.id) {
-          console.log('Found profile for admin, authenticating with profile ID:', profile.id)
-          user = { id: profile.id, email }
-          session = { access_token: `token-${profile.id}`, refresh_token: '' }
-          await cacheDel(cacheKey)
-        } else {
-          console.log('Admin login failed, returning error')
-          return NextResponse.json({ ok: false, error: loginErrorMsg }, { status: 401 })
-        }
+        return NextResponse.json(
+          { ok: false, success: false, error: 'credentials wrong', message: 'credentials wrong' },
+          { status: 401 }
+        )
       }
     } else {
       console.log('Default login for normal users')
       // 5. Default login for normal users
       try {
         const authData = await supabaseSignInWithPassword({ email, password })
+        if (!authData?.user) {
+          throw new Error('Invalid credentials')
+        }
         user = authData.user
         console.log('User:', user)
         session = authData.session
         console.log('Session:', session)
       } catch (err: any) {
         console.log('User login attempt via Supabase auth failed:', err?.message)
-        const profile = existingProfile || (await fetchLoginProfileByEmail(email))
-        if (profile?.id) {
-          console.log('Found profile for user, authenticating with profile ID:', profile.id)
-          user = { id: profile.id, email }
-          session = { access_token: `token-${profile.id}`, refresh_token: '' }
-        } else {
-          const hexId = Buffer.from(email).toString('hex').padEnd(12, '0').slice(0, 12)
-          const fallbackId = `00000000-0000-4000-8000-${hexId}`
-          console.log('Creating user session with ID:', fallbackId)
-          user = { id: fallbackId, email }
-          session = { access_token: `token-${fallbackId}`, refresh_token: '' }
-        }
+        await logLoginAudit({ userId: existingProfile?.id, email, status: 'failed', ipAddress, country, userAgent })
+        return NextResponse.json(
+          { ok: false, success: false, error: 'credentials wrong', message: 'credentials wrong' },
+          { status: 401 }
+        )
       }
     }
 
@@ -282,7 +281,7 @@ export async function POST(req: Request) {
       // Handle 2FA flow
       const tempToken = crypto.randomUUID()
       const method: 'totp' | 'email_otp' = 'email_otp' // Use email OTP for everyone
-      
+
       // Save temp session to Redis (valid for 15 minutes)
       await cacheSetJson(`temp_2fa_session:${tempToken}`, {
         user: clientUser,
@@ -294,7 +293,7 @@ export async function POST(req: Request) {
       let otp: string | undefined
       if (method === 'email_otp') {
         otp = generateOtp()
-        await cacheSetJson(`login_otp:${tempToken}`, otp, 15 * 60)
+        await cacheSetJson(`login_otp:${tempToken}`, otp, 30)
         await sendLoginOtp({ email, otp })
       }
 

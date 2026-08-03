@@ -93,8 +93,8 @@ export async function POST(req: Request) {
     // 2. Generate OTP
     const otp = generateOtp()
 
-    // 3. Store user details and OTP in Redis (valid for 15 minutes)
-    const ttlSeconds = 15 * 60
+    // 3. Store user details and OTP in Redis (valid for 30 seconds)
+    const ttlSeconds = 30
     const cacheKey = `pending_register:v1:${email}`
     await cacheSetJson(cacheKey, { email, password, name, otp, ...phoneFields }, ttlSeconds)
 
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     await sendEmail({
       to: email,
       subject: 'Verify your ITU registration',
-      text: `Your OTP is: ${otp}. It is valid for 15 minutes.`,
+      text: `Your OTP is: ${otp}. It is valid for 30 seconds.`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
           <h2>Welcome to ITU!</h2>
@@ -111,7 +111,7 @@ export async function POST(req: Request) {
           <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
             ${otp}
           </div>
-          <p>This code is valid for 15 minutes.</p>
+          <p>This code is valid for 30 seconds.</p>
           <p>If you did not request this code, please ignore this email.</p>
         </div>
       `,

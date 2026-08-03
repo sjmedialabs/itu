@@ -42,7 +42,7 @@ function LoginForm() {
 
   const [otpStep, setOtpStep] = useState<'entry' | 'otp'>('entry')
   const [otpValue, setOtpValue] = useState('')
-  const [otpTimer, setOtpTimer] = useState(25)
+  const [otpTimer, setOtpTimer] = useState(30)
   const [sendingOtp, setSendingOtp] = useState(false)
   const [devOtp, setDevOtp] = useState('')
   const [selectedCountryCode, setSelectedCountryCode] = useState('IN')
@@ -106,7 +106,7 @@ function LoginForm() {
       setRequires2FA(true)
       setTempToken(result.temp_token || null)
       setOtpStep('otp')
-      setOtpTimer(25)
+      setOtpTimer(30)
       if (result.otp) {
         console.log('[DEV OTP] Login email 2FA:', result.otp)
         setDevOtp(result.otp)
@@ -470,7 +470,7 @@ function LoginForm() {
                         setDevOtp('')
                       }
                       setOtpValue('')
-                      setOtpTimer(25)
+                      setOtpTimer(30)
                       setOtpStep('otp')
                     } catch (e) {
                       setError(e instanceof Error ? e.message : 'Failed to send OTP.')
@@ -549,7 +549,7 @@ function LoginForm() {
                       type="button"
                       className="font-semibold text-[var(--hero-cta-orange)] hover:underline"
                       onClick={async () => {
-                        setOtpTimer(25)
+                        setOtpTimer(30)
                         setOtpValue('')
                         setError('')
                         try {
