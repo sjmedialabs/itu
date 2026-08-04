@@ -7,13 +7,13 @@ const USER_ID = '11111111-1111-4111-8111-111111111111'
 const ORIGINAL_ENV = { ...process.env }
 
 function setNodeEnv(value: string) {
-  process.env.NODE_ENV = value
+  process.env = { ...process.env, NODE_ENV: value }
 }
 
 describe('getUserIdFromRequest', () => {
   beforeEach(() => {
     // set the values we need explicitly
-    process.env.NODE_ENV = 'test'
+    setNodeEnv('test')
     process.env.OTP_SESSION_SECRET = 'test-secret'
     delete process.env.ALLOW_INSECURE_USER_HEADERS
   })
