@@ -1479,7 +1479,7 @@ export default function TopupSummaryPage() {
                 </div>
 
                 {/* Benefits */}
-                <div className="mt-4 grid gap-3 rounded-lg bg-[#f3f9ff] p-4 md:grid-cols-3">
+                {/* <div className="mt-4 grid gap-3 rounded-lg bg-[#f3f9ff] p-4 md:grid-cols-3">
                   <div className="space-y-1">
                     <p className="text-[11px] font-semibold text-neutral-500">Data</p>
                     <p className="text-xs font-semibold text-neutral-900">{selectedPlan.data || '2GB/day'}</p>
@@ -1492,7 +1492,7 @@ export default function TopupSummaryPage() {
                     <p className="text-[11px] font-semibold text-neutral-500">SMS</p>
                     <p className="text-xs font-semibold text-neutral-900">{selectedPlan.sms || '100/day'}</p>
                   </div>
-                </div>
+                </div> */}
 
                 {selectedPlan.benefits ? (
                   <div className="mt-4 flex items-center gap-3 rounded-lg bg-neutral-50 px-4 py-3 text-xs text-neutral-600 ring-1 ring-black/5">

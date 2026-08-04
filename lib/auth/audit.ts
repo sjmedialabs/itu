@@ -241,7 +241,7 @@ export async function sendLoginOtp({ email, otp }: { email: string; otp: string 
       <div style="font-size: 24px; font-weight: bold; background: #f0f0f0; padding: 10px 20px; display: inline-block; border-radius: 5px; margin: 10px 0;">
         ${otp}
       </div>
-      <p>This code is valid for 30 seconds.</p>
+      <p>This code is valid for 5 minutes.</p>
     </div>
   `
 
@@ -249,7 +249,7 @@ export async function sendLoginOtp({ email, otp }: { email: string; otp: string 
     await sendEmail({
       to: email,
       subject: 'Your Login Verification Code',
-      text: `Your login OTP verification code is: ${otp}. It is valid for 30 seconds.`,
+      text: `Your login OTP verification code is: ${otp}. It is valid for 5 minutes.`,
       html,
     })
   } catch (mailErr) {
