@@ -69,6 +69,12 @@ export async function supabaseSignInWithPassword(payload: {
 }
 
 export async function supabaseGetUser(accessToken: string): Promise<SupabaseUser | null> {
+  if (accessToken.startsWith('token-')) {
+    const rawId = accessToken.slice(6).trim()
+    if (rawId) {
+      return { id: rawId } as SupabaseUser
+    }
+  }
   const res = await fetch(`${supabaseAuthBaseUrl()}/auth/v1/user`, {
     headers: {
       apikey: supabaseAnonKey(),

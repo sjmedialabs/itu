@@ -25,6 +25,10 @@ export async function POST(req: Request) {
     const email = (body?.email ?? '').trim()
     const phone = (body?.phone ?? '').trim()
 
+    const headerUserId = req.headers.get('x-user-id')
+    if (!userId && headerUserId) {
+      userId = headerUserId
+    }
     if (!userId && body?.userId) {
       userId = body.userId
     }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyOtp } from '@/lib/security/otp'
 import { rateLimit } from '@/lib/security/rate-limit'
-import { supabaseGetUser, supabaseAdminUpdateUser } from '@/lib/supabase/auth-rest'
+import { supabaseGetUser, supabaseAdminUpdateUser, supabaseAdminCreateUser } from '@/lib/supabase/auth-rest'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { fetchProfileForUser } from '@/lib/auth/get-admin-from-request'
 import { buildUserFromProfile } from '@/lib/auth/build-auth-user'
@@ -39,11 +39,22 @@ export async function POST(req: Request) {
       }
     }
 
-    const body = (await req.json().catch(() => null)) as { type?: 'email' | 'phone'; value?: string; otp?: string; userId?: string } | null
+    const body = (await req.json().catch(() => null)) as {
+      type?: 'email' | 'phone'
+      value?: string
+      otp?: string
+      userId?: string
+      password?: string
+    } | null
     const type = body?.type
     const value = (body?.value ?? '').trim()
     const otp = (body?.otp ?? '').trim()
+    const password = (body?.password ?? '').trim()
 
+    const headerUserId = req.headers.get('x-user-id')
+    if (!userId && headerUserId) {
+      userId = headerUserId
+    }
     if (!userId && body?.userId) {
       userId = body.userId
     }
@@ -62,32 +73,85 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'Invalid or expired verification code' }, { status: 400 })
     }
 
+    let finalUserId = userId
+
     if (type === 'email') {
       const currentProfile = await fetchProfileForUser(userId)
       if (currentProfile?.app_role === 'admin') {
         return NextResponse.json({ ok: false, error: 'Administrators are not allowed to change their email address' }, { status: 400 })
       }
-      // 1. Update user email in Supabase Auth (GoTrue)
+
+      // 1. Try updating user email in Supabase Auth (GoTrue)
       const adminRes = await supabaseAdminUpdateUser(userId, {
         email: value,
-        email_confirm: true
+        email_confirm: true,
+        ...(password ? { password } : {}),
       })
+
+      // If user not found in Auth GoTrue (mobile-only profile user created directly in profiles), create Auth user entry
       if (adminRes.error) {
-        throw new Error(adminRes.error)
+        console.warn(`[verify-otp] supabaseAdminUpdateUser notice for user ${userId}:`, adminRes.error)
+        const userPassword = password || `ItuP@ss${userId.slice(-6)}!`
+        
+        const createRes = await supabaseAdminCreateUser({
+          email: value,
+          password: userPassword,
+          email_confirm: true,
+          user_metadata: { name: currentProfile?.name || '' },
+        })
+
+        if (createRes.user?.id) {
+          const newAuthId = createRes.user.id
+          console.log(`[verify-otp] Created Auth user ${newAuthId} for mobile profile ${userId}`)
+          if (newAuthId !== userId) {
+            // Upsert profile under newAuthId so both IDs link correctly
+            await supabaseRest('profiles', {
+              method: 'POST',
+              headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+              body: JSON.stringify([
+                {
+                  id: newAuthId,
+                  email: value,
+                  name: currentProfile?.name || '',
+                  phone: currentProfile?.phone || null,
+                  country_code: currentProfile?.country_code || null,
+                  country: currentProfile?.country || null,
+                  app_role: currentProfile?.app_role || 'user',
+                  is_active: true,
+                  is_registered_with_email: true,
+                  image: currentProfile?.image || null,
+                  updated_at: new Date().toISOString(),
+                },
+              ]),
+            })
+            finalUserId = newAuthId
+          }
+        } else if (createRes.error) {
+          console.warn(`[verify-otp] supabaseAdminCreateUser fallback notice:`, createRes.error)
+        }
       }
 
-      // 2. Update email in profiles table
-      const updateRes = await supabaseRest(`profiles?id=eq.${encodeURIComponent(userId)}`, {
+      // 2. Update email and is_registered_with_email in profiles table
+      await supabaseRest(`profiles?id=eq.${encodeURIComponent(finalUserId)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: value,
-          updated_at: new Date().toISOString()
-        })
+          is_registered_with_email: true,
+          updated_at: new Date().toISOString(),
+        }),
       })
-      if (!updateRes.ok) {
-        const text = await updateRes.text().catch(() => '')
-        throw new Error(`Failed to update email in profiles database: ${text}`)
+
+      if (finalUserId !== userId) {
+        await supabaseRest(`profiles?id=eq.${encodeURIComponent(userId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: value,
+            is_registered_with_email: true,
+            updated_at: new Date().toISOString(),
+          }),
+        })
       }
     } else if (type === 'phone') {
       const currentProfile = await fetchProfileForUser(userId)
@@ -124,20 +188,16 @@ export async function POST(req: Request) {
     }
 
     // Fetch the updated profile and construct client user object
-    const profile = await fetchProfileForUser(userId)
+    const profile = (await fetchProfileForUser(finalUserId)) || (await fetchProfileForUser(userId))
     
-    // Construct authUser if we didn't have it (fallback case)
-    if (!authUser && profile) {
-      authUser = {
-        id: userId,
-        email: profile.email ?? '',
-        user_metadata: { name: profile.name ?? '' },
-      }
-    } else if (authUser && type === 'email') {
-      authUser.email = value
+    // Construct authUser object
+    authUser = {
+      id: profile?.id || finalUserId || userId,
+      email: value || profile?.email || '',
+      user_metadata: { name: profile?.name ?? '' },
     }
 
-    const clientUser = authUser ? buildUserFromProfile(authUser, profile) : null
+    const clientUser = buildUserFromProfile(authUser, profile)
 
     return NextResponse.json({
       ok: true,

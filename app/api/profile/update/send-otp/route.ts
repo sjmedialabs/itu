@@ -44,6 +44,10 @@ export async function POST(req: Request) {
     const type = body?.type
     const value = (body?.value ?? '').trim()
 
+    const headerUserId = req.headers.get('x-user-id')
+    if (!userId && headerUserId) {
+      userId = headerUserId
+    }
     if (!userId && body?.userId) {
       userId = body.userId
     }
