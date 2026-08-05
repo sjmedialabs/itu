@@ -6,7 +6,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 function readCookie(cookieHeader: string, name: string): string {
-  const m = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`))
+  const m = cookieHeader.match(new RegExp(`(?:^|[;,]\\s*)${name}=([^;,]+)`))
   return m?.[1] ? decodeURIComponent(m[1]) : ''
 }
 
@@ -25,12 +25,16 @@ function readInsecureHeaderUserId(request: Request): string | null {
   }
 
   const headerId = request.headers.get('x-user-id')?.trim() ?? ''
-  if (!headerId || !UUID_RE.test(headerId)) return null
-  return headerId
+  if (!headerId) return null
+  const uuidMatch = headerId.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)
+  if (uuidMatch && uuidMatch[0]) {
+    return uuidMatch[0]
+  }
+  return null
 }
 
 /**
- * Resolve the authenticated user id for payment/checkout APIs.
+ * Resolve the authenticated user id for payment/checkout/profile APIs.
  * Order: sb-access-token cookie / Bearer header → itu-user-id cookie → (dev only) x-user-id header when ALLOW_INSECURE_USER_HEADERS=true.
  *
  * Access-token path uses request/Redis/JWT-local caches (see session-cache) to avoid
@@ -45,18 +49,25 @@ export async function getUserIdFromRequest(request: Request): Promise<string | n
   if (token) {
     if (token.startsWith('token-')) {
       const extracted = token.slice(6).trim()
-      if (extracted) return extracted
+      if (extracted && UUID_RE.test(extracted)) return extracted
+    }
+    if (token.startsWith('session-')) {
+      const extracted = token.slice(8).trim()
+      if (extracted && UUID_RE.test(extracted)) return extracted
+    }
+    if (UUID_RE.test(token)) {
+      return token
     }
     try {
       const userId = await resolveUserIdFromAccessToken(token)
-      if (userId) return userId
+      if (userId && UUID_RE.test(userId)) return userId
     } catch {
       // ignore invalid/expired token
     }
   }
 
   const otpUserId = verifyOtpUserId(readCookie(cookie, 'itu-user-id'))
-  if (otpUserId) return otpUserId
+  if (otpUserId && UUID_RE.test(otpUserId)) return otpUserId
 
   return readInsecureHeaderUserId(request)
 }

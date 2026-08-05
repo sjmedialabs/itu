@@ -74,6 +74,28 @@ describe('getUserIdFromRequest', () => {
     await expect(getUserIdFromRequest(request)).resolves.toBeNull()
   })
 
+  it('parses token- and session- prefixed tokens from Bearer header', async () => {
+    const req1 = new Request('http://localhost/api/profile/transactions', {
+      headers: { authorization: `Bearer token-${USER_ID}` },
+    })
+    await expect(getUserIdFromRequest(req1)).resolves.toBe(USER_ID)
+
+    const req2 = new Request('http://localhost/api/profile/transactions', {
+      headers: { authorization: `Bearer session-${USER_ID}` },
+    })
+    await expect(getUserIdFromRequest(req2)).resolves.toBe(USER_ID)
+  })
+
+  it('extracts UUID from concatenated x-user-id header when ALLOW_INSECURE_USER_HEADERS=true', async () => {
+    process.env.ALLOW_INSECURE_USER_HEADERS = 'true'
+    const request = new Request('http://localhost/api/profile/update', {
+      headers: {
+        'x-user-id': `${USER_ID},sb-access-token=token-${USER_ID}`,
+      },
+    })
+    await expect(getUserIdFromRequest(request)).resolves.toBe(USER_ID)
+  })
+
   it('builds auth headers for checkout requests', () => {
     expect(
       buildUserAuthHeaders({
