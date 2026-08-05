@@ -30,43 +30,122 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Run ESLint
-        run: pnpm run lint
+        run: |
+          set -x
+          pnpm run lint 2>&1 | tee lint-output.txt
+      - name: Upload lint logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-log-main
+          path: lint-output.txt
+          retention-days: 14
 
   typecheck:
     name: TypeScript
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Run TypeScript check
-        run: pnpm run typecheck
+        run: |
+          set -x
+          pnpm run typecheck 2>&1 | tee typecheck-output.txt
+      - name: Upload typecheck logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-log-main
+          path: typecheck-output.txt
+          retention-days: 14
 
   test:
     name: Unit tests + coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Run Jest with coverage
-        run: pnpm run test:coverage
+        run: |
+          set -x
+          pnpm run test:coverage 2>&1 | tee test-output.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-report-main
           path: coverage/
           retention-days: 30
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log-main
+          path: test-output.txt
+          retention-days: 14
 
   audit:
     name: Production dependency audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: pnpm audit (production, high+) — hard-fail on deploy
-        # Production deploys always hard-fail. PR CI remains configurable via CI_AUDIT_STRICT.
-        run: pnpm run audit:prod
+        run: |
+          set -x
+          pnpm run audit:prod 2>&1 | tee audit-output.txt
+      - name: Upload audit logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-log-main
+          path: audit-output.txt
+          retention-days: 14
 
   secret-scan:
     name: Secret scanning
@@ -86,6 +165,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: github/codeql-action/init@v3
         with:
           languages: javascript-typescript
@@ -101,6 +182,17 @@ jobs:
     needs: [lint, typecheck, test, audit, secret-scan]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Load web image build env
         run: |
@@ -114,7 +206,9 @@ jobs:
           test -n "$NEXT_PUBLIC_APP_URL" || { echo "::error::NEXT_PUBLIC_APP_URL is missing"; exit 1; }
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || { echo "::error::NEXT_PUBLIC_SUPABASE_URL is missing"; exit 1; }
       - name: Next.js production build
-        run: pnpm run build
+        run: |
+          set -x
+          pnpm run build 2>&1 | tee build-output.txt
         env:
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_PUBLIC_APP_URL: ${{ env.NEXT_PUBLIC_APP_URL }}
@@ -127,6 +221,13 @@ jobs:
           test -d .next/standalone/node_modules
           test -d .next/static
           test -d public
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-main
+          path: build-output.txt
+          retention-days: 14
 
   # ── Build, hard-scan, then push SHA (+ convenience :latest) ───────────────
   build-and-push:
@@ -137,13 +238,25 @@ jobs:
       deploy_sha: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.VPS_GITHUB_USERNAME }}
-          password: ${{ secrets.VPS_GITHUB_TOKEN }}
+          username: ${{ secrets.VPS_GITHUB_USERNAME || github.actor }}
+          password: ${{ secrets.VPS_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Load web image build env
         run: |
@@ -230,6 +343,13 @@ jobs:
     needs: [build-and-push]
     runs-on: ubuntu-latest
     steps:
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+
       - name: Deploy via SSH to VPS (SHA cutover)
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -247,7 +367,11 @@ jobs:
             set -euo pipefail
             cd /var/www/itu
 
-            echo "${{ secrets.VPS_GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ secrets.VPS_GITHUB_USERNAME }}" --password-stdin
+            USER_NAME="${{ secrets.VPS_GITHUB_USERNAME || github.actor }}"
+            USER_TOKEN="${{ secrets.VPS_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+            if [ -n "$USER_TOKEN" ] && [ -n "$USER_NAME" ]; then
+              echo "$USER_TOKEN" | docker login ghcr.io -u "$USER_NAME" --password-stdin || true
+            fi
 
             # Sync deploy scripts + migrations; discard any local VPS edits so pull never conflicts
             git fetch origin main
@@ -262,3 +386,4 @@ jobs:
             export DEPLOY_SHA IMAGE_WEB IMAGE_SIDECAR REDIS_PASSWORD NEXT_PUBLIC_APP_URL
             export DEPLOY_ORCHESTRATOR="${DEPLOY_ORCHESTRATOR:-k8s}"
             bash scripts/deploy-prod.sh
+
