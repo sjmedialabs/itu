@@ -23,27 +23,80 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Run ESLint
-        run: pnpm run lint
+        run: |
+          set -x
+          pnpm run lint 2>&1 | tee lint-output.txt
+      - name: Upload lint logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-log
+          path: lint-output.txt
+          retention-days: 14
 
   typecheck:
     name: TypeScript
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Run TypeScript check
-        run: pnpm run typecheck
+        run: |
+          set -x
+          pnpm run typecheck 2>&1 | tee typecheck-output.txt
+      - name: Upload typecheck logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-log
+          path: typecheck-output.txt
+          retention-days: 14
 
   test:
     name: Unit tests + coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Run Jest with coverage
-        run: pnpm run test:coverage
+        run: |
+          set -x
+          pnpm run test:coverage 2>&1 | tee test-output.txt
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -51,18 +104,45 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 14
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: test-output.txt
+          retention-days: 14
 
   audit:
     name: Production dependency audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: pnpm audit (production, high+)
         # PR/dev workflow: soft by default. Set CI_AUDIT_STRICT=true to hard-fail.
         # Production deploy workflow always hard-fails (see deploy.yml).
         continue-on-error: ${{ vars.CI_AUDIT_STRICT != 'true' }}
-        run: pnpm run audit:prod
+        run: |
+          set -x
+          pnpm run audit:prod 2>&1 | tee audit-output.txt
+      - name: Upload audit logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-log
+          path: audit-output.txt
+          retention-days: 14
 
   secret-scan:
     name: Secret scanning
@@ -86,6 +166,8 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Dependency Review
         # Soft by default so known transitive advisories do not freeze PRs.
         # Set repository variable CI_DEPENDENCY_REVIEW_STRICT=true to hard-fail.
@@ -100,6 +182,17 @@ jobs:
     needs: [lint, typecheck, test, audit, secret-scan]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - uses: ./.github/actions/setup-pnpm
       - name: Load public build env defaults
         run: |
@@ -113,7 +206,9 @@ jobs:
           test -n "$NEXT_PUBLIC_APP_URL" || { echo "::error::NEXT_PUBLIC_APP_URL missing"; exit 1; }
           test -n "$NEXT_PUBLIC_SUPABASE_URL" || { echo "::error::NEXT_PUBLIC_SUPABASE_URL missing"; exit 1; }
       - name: Next.js production build
-        run: pnpm run build
+        run: |
+          set -x
+          pnpm run build 2>&1 | tee build-output.txt
         env:
           NEXT_TELEMETRY_DISABLED: '1'
           NEXT_PUBLIC_APP_URL: ${{ env.NEXT_PUBLIC_APP_URL }}
@@ -127,6 +222,13 @@ jobs:
           test -d .next/static
           test -d public
           echo "Standalone build OK"
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build-output.txt
+          retention-days: 14
 
   docker-build:
     name: Docker build (no push)
@@ -135,6 +237,17 @@ jobs:
     # Skip dependency-review when not a PR (workflow_call from deploy).
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Debug environment
+        run: |
+          set -x
+          echo "Runner: $RUNNER_OS"
+          echo "Ref: $GITHUB_REF"
+          echo "SHA: $GITHUB_SHA"
+          pwd
+          ls -la
+          git status --porcelain --untracked-files=all || true
       - name: Load public build env defaults
         run: |
           grep -v '^\s*#' .github/production.build.env | grep -v '^\s*$' >> "$GITHUB_ENV"
@@ -250,3 +363,4 @@ jobs:
           fi
 
           exit $fail
+
