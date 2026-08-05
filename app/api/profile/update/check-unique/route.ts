@@ -7,30 +7,20 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js/core'
 import metadata from 'libphonenumber-js/metadata.min.json'
 const actualMetadata = (metadata as any).default || metadata
 
+import { getUserIdFromRequest } from '@/lib/auth/get-user-id-from-request'
+
 export async function POST(req: Request) {
   try {
-    const cookie = req.headers.get('cookie') ?? ''
-    const m = cookie.match(/(?:^|;\s*)sb-access-token=([^;]+)/)
-    let userId: string | null = null
-
-    const token = m?.[1] ? decodeURIComponent(m[1]) : ''
-    if (token) {
-      const authUser = await supabaseGetUser(token)
-      if (authUser?.id) {
-        userId = authUser.id
-      }
-    }
-
     const body = (await req.json().catch(() => null)) as { email?: string; phone?: string; userId?: string } | null
     const email = (body?.email ?? '').trim()
     const phone = (body?.phone ?? '').trim()
 
-    const headerUserId = req.headers.get('x-user-id')
-    if (!userId && headerUserId) {
-      userId = headerUserId
-    }
+    let userId: string | null = await getUserIdFromRequest(req)
     if (!userId && body?.userId) {
-      userId = body.userId
+      const uuidMatch = String(body.userId).match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)
+      if (uuidMatch && uuidMatch[0]) {
+        userId = uuidMatch[0]
+      }
     }
 
     if (!userId) {

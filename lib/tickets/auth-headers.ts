@@ -16,7 +16,7 @@ export type RequestUser = {
 }
 
 function readCookie(cookieHeader: string, name: string): string {
-  const m = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`))
+  const m = cookieHeader.match(new RegExp(`(?:^|[;,]\\s*)${name}=([^;,]+)`))
   return m?.[1] ? decodeURIComponent(m[1]) : ''
 }
 
@@ -29,9 +29,13 @@ function insecureHeaderUserIdAllowed(): boolean {
 
 function readInsecureHeaderUserId(request: NextRequest | Request): string | null {
   if (!insecureHeaderUserIdAllowed()) return null
-  const headerId = request.headers.get('x-user-id')?.trim() ?? ''
-  if (!headerId || !UUID_RE.test(headerId)) return null
-  return headerId
+  const rawHeader = request.headers.get('x-user-id')?.trim() ?? ''
+  if (!rawHeader) return null
+  const uuidMatch = rawHeader.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)
+  if (uuidMatch && uuidMatch[0]) {
+    return uuidMatch[0]
+  }
+  return null
 }
 
 /**
@@ -44,8 +48,12 @@ export async function getAuthenticatedRequestUser(
   const cookie = request.headers.get('cookie') ?? ''
   const authHeader = request.headers.get('authorization') ?? ''
   let bearerToken = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
-  if (bearerToken && bearerToken.startsWith('token-')) {
-    bearerToken = bearerToken.replace('token-', '')
+  if (bearerToken) {
+    if (bearerToken.startsWith('token-')) {
+      bearerToken = bearerToken.replace('token-', '')
+    } else if (bearerToken.startsWith('session-')) {
+      bearerToken = bearerToken.replace('session-', '')
+    }
   }
 
   const token = readCookie(cookie, 'sb-access-token') || bearerToken
@@ -69,14 +77,16 @@ export async function getAuthenticatedRequestUser(
       // invalid token
     }
 
-    const cleanToken = token.replace('token-', '').trim()
-    if (UUID_RE.test(cleanToken)) {
-      const profile = await fetchProfileForUser(cleanToken)
+    const cleanToken = token.replace('token-', '').replace('session-', '').trim()
+    const uuidMatch = cleanToken.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)
+    if (uuidMatch && uuidMatch[0]) {
+      const userId = uuidMatch[0]
+      const profile = await fetchProfileForUser(userId)
       const email = (request.headers.get('x-user-email')?.trim() || profile?.email || '').trim()
       const name = (request.headers.get('x-user-name')?.trim() || profile?.name || 'User').trim()
       const appRole = normalizeAppRole(profile?.app_role ?? null, email)
       return {
-        id: cleanToken,
+        id: userId,
         email,
         name,
         role: appRole,
@@ -95,8 +105,9 @@ export async function getAuthenticatedRequestUser(
   }
 
   const rawHeaderId = request.headers.get('x-user-id')?.trim() ?? ''
-  const headerId = rawHeaderId.replace('token-', '').trim()
-  if (headerId && UUID_RE.test(headerId)) {
+  const uuidMatch = rawHeaderId.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)
+  if (uuidMatch && uuidMatch[0]) {
+    const headerId = uuidMatch[0]
     const profile = await fetchProfileForUser(headerId)
     return {
       id: headerId,
