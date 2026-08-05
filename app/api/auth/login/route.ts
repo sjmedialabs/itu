@@ -293,7 +293,7 @@ export async function POST(req: Request) {
       let otp: string | undefined
       if (method === 'email_otp') {
         otp = generateOtp()
-        await cacheSetJson(`login_otp:${tempToken}`, otp, 30)
+        await cacheSetJson(`login_otp:${tempToken}`, otp, 300)
         await sendLoginOtp({ email, otp })
       }
 
