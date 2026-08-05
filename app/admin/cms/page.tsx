@@ -45,7 +45,7 @@ import { AboutTab } from '@/components/admin/cms/about-tab'
 import { PrivacyTab } from '@/components/admin/cms/privacy-tab'
 import { TermsTab } from '@/components/admin/cms/terms-tab'
 
-﻿export default function CMSPage() {
+export default function CMSPage() {
   const tabsScrollRef = useRef<HTMLDivElement>(null)
 
   const scrollTabsLeft = () => {
