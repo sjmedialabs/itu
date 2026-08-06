@@ -1521,7 +1521,7 @@ export default function TopupSummaryPage() {
                             }}
                           />
                         ) : null}
-                        {/* <span className='text-[12px] font-normal'>{operator}</span> */}
+                        <span className='text-[10px] font-semibold'>{operator}</span>
                       </div>
                     }
                   />
