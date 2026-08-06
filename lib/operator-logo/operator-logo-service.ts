@@ -130,7 +130,7 @@ function extractPngLogoFromBrand(brand: BrandfetchBrandDetails): string | null {
   if (!brand || !Array.isArray(brand.logos) || !brand.logos.length) return null
 
   // Collect all PNG formats across all logos
-  let pngCandidates: Array<{ src: string; transparent: boolean; height: number }> = []
+  const pngCandidates: Array<{ src: string; transparent: boolean; height: number }> = []
 
   for (const logo of brand.logos) {
     if (!Array.isArray(logo.formats)) continue

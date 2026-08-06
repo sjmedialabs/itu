@@ -13,10 +13,13 @@ import {
   Sparkles,
   Radio,
   Globe,
+  Pencil,
+  Upload,
   Image as ImageIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -90,6 +93,14 @@ export default function OperatorLogoManagementPage() {
   const [progress, setProgress] = useState<SyncProgress | null>(null)
   const [isStartingSync, setIsStartingSync] = useState(false)
   const [confirmForceModal, setConfirmForceModal] = useState(false)
+
+  // State for Edit Logo Modal
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [selectedOperator, setSelectedOperator] = useState<OperatorLogoItem | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   // Fetch Summary Statistics
   const loadStatistics = useCallback(async () => {
@@ -186,6 +197,87 @@ export default function OperatorLogoManagementPage() {
       toast.error(err.message || 'Failed to start force sync')
     } finally {
       setIsStartingSync(false)
+    }
+  }
+
+  // Open Edit Modal
+  const handleOpenEditModal = (op: OperatorLogoItem) => {
+    setSelectedOperator(op)
+    setSelectedFile(null)
+    setFilePreview(null)
+    setFileError(null)
+    setEditModalOpen(true)
+  }
+
+  // Handle File Input Selection (.png validation)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) {
+      setSelectedFile(null)
+      setFilePreview(null)
+      setFileError(null)
+      return
+    }
+
+    const isPng = file.name.toLowerCase().endsWith('.png') || file.type === 'image/png'
+    if (!isPng) {
+      setSelectedFile(null)
+      setFilePreview(null)
+      setFileError('Invalid format. Please select a .png image file.')
+      return
+    }
+
+    setFileError(null)
+    setSelectedFile(file)
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      setFilePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Save / Upload New Logo
+  const handleSaveLogo = async () => {
+    if (!selectedOperator || !selectedFile) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('systemOperatorId', selectedOperator.id)
+      formData.append('file', selectedFile)
+
+      const res = await fetch('/api/admin/operator-logos/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json()
+      const nowIso = data.last_synced_at || new Date().toISOString()
+      const rawUrl = data.logo_url || ''
+      const cacheBustUrl = rawUrl ? `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}t=${Date.now()}` : rawUrl
+
+      // Optimistically update local operators table state immediately
+      setOperators((prev) =>
+        prev.map((op) => {
+          if (op.id === selectedOperator.id) {
+            return {
+              ...op,
+              logo_url: cacheBustUrl,
+              logo_status: 'FOUND' as const,
+              last_synced_at: nowIso,
+            }
+          }
+          return op
+        })
+      )
+
+      toast.success(`Logo updated successfully for ${selectedOperator.system_operator_name}`)
+      setEditModalOpen(false)
+      void loadStatistics()
+      void loadOperators()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to upload logo')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -380,20 +472,21 @@ export default function OperatorLogoManagementPage() {
                 <TableHead>Country Code</TableHead>
                 <TableHead>Brandfetch Domain</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="pr-6">Last Synced At</TableHead>
+                <TableHead>Last Synced At</TableHead>
+                <TableHead className="pr-6 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                     Loading operator logos...
                   </TableCell>
                 </TableRow>
               ) : operators.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     No operator logo records found matching criteria.
                   </TableCell>
                 </TableRow>
@@ -406,6 +499,7 @@ export default function OperatorLogoManagementPage() {
                         <div className="h-10 w-10 rounded-md border bg-muted/40 flex items-center justify-center overflow-hidden p-1">
                           {logoUrl ? (
                             <img
+                              key={logoUrl || op.id}
                               src={logoUrl}
                               alt={op.system_operator_name}
                               className="h-full w-full object-contain"
@@ -446,7 +540,7 @@ export default function OperatorLogoManagementPage() {
                         <StatusBadge status={op.logo_status} />
                       </TableCell>
 
-                      <TableCell className="pr-6 text-xs text-muted-foreground whitespace-nowrap">
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {op.last_synced_at
                           ? new Date(op.last_synced_at).toLocaleString('en-GB', {
                               day: '2-digit',
@@ -457,6 +551,18 @@ export default function OperatorLogoManagementPage() {
                             })
                           : '—'}
                       </TableCell>
+
+                      <TableCell className="pr-6 text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEditModal(op)}
+                          className="h-8 px-2.5 text-xs font-medium"
+                        >
+                          <Pencil className="h-3.5 w-3.5 mr-1" />
+                          Edit Logo
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   )
                 })
@@ -465,6 +571,96 @@ export default function OperatorLogoManagementPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Edit Operator Logo Dialog Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-primary" />
+              Edit Operator Logo
+            </DialogTitle>
+            <DialogDescription>
+              Upload a custom PNG logo for <strong className="text-foreground">{selectedOperator?.system_operator_name}</strong> ({selectedOperator?.country_id}).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Current / New Logo Preview Box */}
+            <div className="flex items-center gap-4 rounded-lg border p-3 bg-muted/20">
+              <div className="h-16 w-16 rounded-md border bg-background flex items-center justify-center p-1.5 overflow-hidden shrink-0">
+                {filePreview ? (
+                  <img src={filePreview} alt="New Preview" className="h-full w-full object-contain" />
+                ) : selectedOperator?.logo_url ? (
+                  <img
+                    src={toBrowserStorageUrl(selectedOperator.logo_url)}
+                    alt={selectedOperator.system_operator_name}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <Radio className="h-8 w-8 text-muted-foreground/50" />
+                )}
+              </div>
+              <div className="space-y-1 text-xs">
+                <div className="font-semibold text-sm">{selectedOperator?.system_operator_name}</div>
+                <div className="text-muted-foreground font-mono">Slug: {selectedOperator?.slug || '—'}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Status:</span>
+                  <StatusBadge status={filePreview ? 'FOUND' : selectedOperator?.logo_status} />
+                </div>
+              </div>
+            </div>
+
+            {/* File Input */}
+            <div className="space-y-2">
+              <Label htmlFor="logo-file-input" className="text-xs font-semibold">
+                Upload New Logo (.png format only)
+              </Label>
+              <Input
+                id="logo-file-input"
+                type="file"
+                accept=".png,image/png"
+                onChange={handleFileChange}
+                disabled={uploading}
+                className="cursor-pointer text-xs"
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Requirements: PNG format with transparent background recommended.
+              </p>
+              {fileError && (
+                <p className="text-xs font-medium text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  {fileError}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setEditModalOpen(false)} disabled={uploading}>
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              onClick={handleSaveLogo}
+              disabled={!selectedFile || Boolean(fileError) || uploading}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Save Logo
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirmation Modal for Force Resync */}
       <Dialog open={confirmForceModal} onOpenChange={setConfirmForceModal}>

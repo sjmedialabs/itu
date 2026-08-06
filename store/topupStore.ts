@@ -36,6 +36,7 @@ type TopupSessionState = {
   countryCode: string
   phoneNumber: string
   operator: string
+  operatorLogo?: string | null
   selectedPlan: TopupPlan | null
   pricing: TopupPricing | null
   fees: number
@@ -68,7 +69,7 @@ type TopupSessionState = {
 
 type TopupSessionActions = {
   setPhoneDetails: (payload: { countryCode: string; phoneNumber: string }) => void
-  setOperator: (operator: string) => void
+  setOperator: (operator: string, operatorLogo?: string | null) => void
   selectPlan: (plan: TopupPlan) => void
   calculatePricing: (payload?: { fee?: number; serviceFee?: number; tax?: number }) => void
   setCheckoutSession: (payload: {
@@ -100,6 +101,7 @@ const initialState: TopupSessionState = {
   countryCode: 'IN',
   phoneNumber: '',
   operator: '',
+  operatorLogo: null,
   selectedPlan: null,
   pricing: null,
   fees: 0,
@@ -126,6 +128,7 @@ type PersistedTopupSession = Pick<
   | 'countryCode'
   | 'phoneNumber'
   | 'operator'
+  | 'operatorLogo'
   | 'operatorProviderId'
   | 'selectedPlan'
   | 'pricing'
@@ -157,6 +160,7 @@ function migratePersistedTopupSession(persistedState: unknown): PersistedTopupSe
     countryCode: state.countryCode ?? initialState.countryCode,
     phoneNumber: state.phoneNumber ?? initialState.phoneNumber,
     operator: state.operator ?? initialState.operator,
+    operatorLogo: state.operatorLogo ?? initialState.operatorLogo,
     operatorProviderId: state.operatorProviderId ?? initialState.operatorProviderId,
     selectedPlan: state.selectedPlan ?? initialState.selectedPlan,
     pricing: state.pricing ?? initialState.pricing,
@@ -188,7 +192,7 @@ export const useTopupStore = create<TopupSessionState & TopupSessionActions>()(
           countryCode: countryCode.toUpperCase(),
           phoneNumber,
         }),
-      setOperator: (operator) => set({ operator }),
+      setOperator: (operator, operatorLogo) => set({ operator, operatorLogo: operatorLogo !== undefined ? operatorLogo : get().operatorLogo }),
       selectPlan: (plan) => set({ selectedPlan: plan }),
       calculatePricing: (payload = {}) => {
         const state = get()
@@ -248,6 +252,7 @@ export const useTopupStore = create<TopupSessionState & TopupSessionActions>()(
         countryCode: s.countryCode,
         phoneNumber: s.phoneNumber,
         operator: s.operator,
+        operatorLogo: s.operatorLogo,
         operatorProviderId: s.operatorProviderId,
         selectedPlan: s.selectedPlan,
         pricing: s.pricing,

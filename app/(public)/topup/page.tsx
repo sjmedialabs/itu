@@ -426,7 +426,7 @@ function TopupPlanSelectionContent() {
     if (initial) {
       const chosen = providers.find((p) => p.code === initial)
       if (chosen && (!operator || operator === 'Unknown' || operator === '')) {
-        setOperator(chosen.shortName || chosen.name)
+        setOperator(chosen.shortName || chosen.name, chosen.logo)
       }
     }
   }, [resolvedProviderCode, providers, operator, setOperator, manualOperatorOverride, selectedProviderCode])
@@ -732,7 +732,7 @@ function TopupPlanSelectionContent() {
                   const chosen = providers.find((p) => p.code === val)
                   if (chosen) {
                     setManualOperatorOverride(true)
-                    setOperator(chosen.shortName || chosen.name)
+                    setOperator(chosen.shortName || chosen.name, chosen.logo)
                     setResolvedProviderCode(chosen.code)
                     setSelectedProviderCode(chosen.code)
                   }
