@@ -475,6 +475,14 @@ export async function fetchPublicOperators(countryInput: string): Promise<Public
         status?: string | null
       }>
       if (rows && rows.length > 0) {
+        let activeLogosMap = new Map<string, string>()
+        try {
+          const { getActiveLogosMap } = await import('@/lib/operator-logo')
+          activeLogosMap = await getActiveLogosMap()
+        } catch {
+          // Ignore if logos table not yet ready
+        }
+
         return await Promise.all(
           rows
             .filter((row) => isMobileCatalogOperator(row))
@@ -485,7 +493,7 @@ export async function fetchPublicOperators(countryInput: string): Promise<Public
               shortName: row.system_operator_name,
               countryCode: await resolveIso2FromDb(row.country_id),
               countryIso3: row.country_id,
-              logo: row.logo ?? null,
+              logo: activeLogosMap.get(row.id) ?? row.logo ?? null,
             }))
         )
       }

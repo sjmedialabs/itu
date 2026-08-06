@@ -25,6 +25,7 @@ import {
 import { englishPlanDisplayFields } from '@/lib/catalog/plan-text-english'
 import { useAuthStore } from '@/lib/stores'
 import { buildUserAuthHeaders } from '@/lib/auth/client-auth-headers'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 
 function cleanOperatorName(name: string): string {
   const val = (name ?? '').trim()
@@ -242,7 +243,7 @@ function elaboratePlanDescription(
 
 
 type OperatorDetectResponse = { operator: string; country: string; providerCode?: string; source?: string }
-type DbProvider = { code: string; name: string; shortName: string }
+type DbProvider = { code: string; name: string; shortName: string; logo?: string | null }
 type DbPlan = TopupPlan
 
 const tabs = [
@@ -742,11 +743,26 @@ function TopupPlanSelectionContent() {
                   <SelectValue placeholder={providersLoading ? 'Loading operators…' : 'Select operator'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {providers.map((p) => (
-                    <SelectItem key={p.code} value={p.code} className="cursor-pointer">
-                      {p.shortName || p.name}
-                    </SelectItem>
-                  ))}
+                  {providers.map((p) => {
+                    const logoUrl = p.logo ? toBrowserStorageUrl(p.logo) : null
+                    return (
+                      <SelectItem key={p.code} value={p.code} className="cursor-pointer">
+                        <div className="flex items-center gap-2.5">
+                          {logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt={p.shortName || p.name}
+                              className="h-5 w-5 object-contain rounded shrink-0"
+                              onError={(e) => {
+                                ;(e.target as HTMLElement).style.display = 'none'
+                              }}
+                            />
+                          ) : null}
+                          <span>{p.shortName || p.name}</span>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             </div>
