@@ -72,6 +72,7 @@ export const STORAGE_BUCKETS = {
   avatars: 'user_avatars',
   tickets: 'ticket_attachments',
   ads: 'ads_media',
+  operator_logos: 'operator-logos',
 } as const
 
 export function sanitizeStorageFileName(name: string): string {

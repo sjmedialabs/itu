@@ -46,6 +46,7 @@ import { buildUserAuthHeaders } from '@/lib/auth/client-auth-headers'
 import { readLocaleCookiesFromDocument } from '@/lib/locale/locale-cookies'
 import { RecaptchaCheckbox } from '@/components/security/RecaptchaCheckbox'
 import { useRecaptchaField } from '@/hooks/use-recaptcha-field'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 
 declare global {
   interface Window {
@@ -634,6 +635,7 @@ export default function TopupSummaryPage() {
     phoneNumber,
     countryCode,
     operator,
+    operatorLogo,
     operatorProviderId,
     checkoutSessionId,
     checkoutBlock,
@@ -649,6 +651,44 @@ export default function TopupSummaryPage() {
   const [loginOpen, setLoginOpen] = useState(false)
   const [payAfterLogin, setPayAfterLogin] = useState(false)
   const [storeHydrated, setStoreHydrated] = useState(false)
+  const [operatorLogoUrl, setOperatorLogoUrl] = useState<string | null>(operatorLogo || null)
+
+  useEffect(() => {
+    if (operatorLogo) {
+      setOperatorLogoUrl(operatorLogo)
+    }
+  }, [operatorLogo])
+
+  useEffect(() => {
+    if (operatorLogoUrl) return
+    if (!countryCode) return
+
+    let cancelled = false
+    const fetchLogo = async () => {
+      try {
+        const res = await fetch(`/api/providers?countryCode=${encodeURIComponent(countryCode)}`, { cache: 'no-store' })
+        if (!res.ok || cancelled) return
+        const data = await res.json()
+        if (!Array.isArray(data?.providers)) return
+        const cleanOp = (operator || '').toLowerCase().trim()
+        const matched = data.providers.find(
+          (p: any) =>
+            p.code === operatorProviderId ||
+            p.name?.toLowerCase() === cleanOp ||
+            p.shortName?.toLowerCase() === cleanOp
+        )
+        if (matched?.logo && !cancelled) {
+          setOperatorLogoUrl(matched.logo)
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    void fetchLogo()
+    return () => {
+      cancelled = true
+    }
+  }, [countryCode, operatorProviderId, operator, operatorLogoUrl])
 
   // Track store hydration state to prevent race conditions on mount
   useEffect(() => {
@@ -1467,7 +1507,24 @@ export default function TopupSummaryPage() {
                 <div className="mt-3 space-y-2 text-sm">
                   <DetailRow label="Mobile Number" value={buildInternationalMobile(countryCode, phoneNumber).replace(/^(\+\d+)/, '$1 ')} />
                   <DetailRow label="Country" value={countryCode} />
-                  <DetailRow label="Operator" value={operator} />
+                  <DetailRow
+                    label="Operator"
+                    value={
+                      <div className="inline-flex items-center justify-end gap-2">
+                        {operatorLogoUrl ? (
+                          <img
+                            src={toBrowserStorageUrl(operatorLogoUrl)}
+                            alt={operator}
+                            className="h-10 w-14 object-contain rounded shrink-0"
+                            onError={(e) => {
+                              ; (e.target as HTMLElement).style.display = 'none'
+                            }}
+                          />
+                        ) : null}
+                        <span className='text-[10px] font-semibold'>{operator}</span>
+                      </div>
+                    }
+                  />
                   <DetailRow
                     label="Plan Name"
                     value={
@@ -1814,7 +1871,7 @@ export default function TopupSummaryPage() {
   )
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 border-b border-neutral-100 pb-2">
       <span className="text-neutral-500">{label}</span>
