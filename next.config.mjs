@@ -14,7 +14,7 @@ function supabaseOrigin() {
 }
 
 const SUPABASE_ORIGIN = supabaseOrigin()
-const MEDIA_SOURCES = ["'self'", 'data:', 'blob:', 'https:', SUPABASE_ORIGIN]
+const MEDIA_SOURCES = ["'self'", 'data:', 'blob:', 'http:', 'https:', SUPABASE_ORIGIN]
   .filter(Boolean)
   .join(' ')
 

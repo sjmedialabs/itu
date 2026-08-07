@@ -1,5 +1,6 @@
 import type { User } from '@/lib/types'
 import { normalizePermissionsJson } from '@/lib/auth/admin-features'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 
 export type ProfileRow = {
   id: string
@@ -71,7 +72,7 @@ export function buildUserFromProfile(
     createdAt: new Date().toISOString(),
     adminPermissions: clientRole === 'admin' ? perms : null,
     appRole,
-    avatar: profile?.image ?? undefined,
+    avatar: profile?.image ? (toBrowserStorageUrl(profile.image) || undefined) : undefined,
     is_registered_with_email: profile?.is_registered_with_email ?? false,
     currency: profile?.currency ?? undefined,
   }

@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 import {
   Menu,
   User,
@@ -466,7 +467,7 @@ export default function PublicLayout({
                   >
                     <Avatar className={cn('size-8', onHeroTop ? 'ring-1 ring-white/40' : 'ring-1 ring-neutral-200')}>
                       {user.avatar && (
-                        <AvatarImage src={user.avatar} alt={user.name} className="object-cover" />
+                        <AvatarImage src={toBrowserStorageUrl(user.avatar)} alt={user.name} className="object-cover" />
                       )}
                       <AvatarFallback
                         className={cn(

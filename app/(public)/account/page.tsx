@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { useAuthStore } from '@/lib/stores'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 import { Camera, Mail, Phone, Calendar, Gift, Loader2, Shield, Eye, EyeOff, CheckCircle2, Lock, Check, ChevronDown } from 'lucide-react'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -606,7 +607,7 @@ export default function AccountProfilePage() {
               />
               <Avatar className="h-24 w-24">
                 {user.avatar && (
-                  <AvatarImage src={user.avatar} alt={user.name} className="object-cover" />
+                  <AvatarImage src={toBrowserStorageUrl(user.avatar)} alt={user.name} className="object-cover" />
                 )}
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                   {user.name.charAt(0).toUpperCase()}
