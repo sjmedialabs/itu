@@ -342,7 +342,7 @@ function TopupPlanSelectionContent() {
     setManualOperatorOverride(false)
     setSelectedProviderCode('')
     setResolvedProviderCode(undefined)
-    setOperator('')
+    setOperator('', null)
     setPhoneSubmitError(null)
   }, [countryCode, setOperator])
 
