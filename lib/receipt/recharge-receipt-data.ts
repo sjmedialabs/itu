@@ -158,10 +158,16 @@ function formatPlanValue(amount: number, currency: string): string {
 }
 
 export async function loadRechargeReceiptData(orderId: string): Promise<RechargeReceiptData | null> {
-  const res = await supabaseRest(
-    `recharge_orders?id=eq.${enc(orderId)}&select=id,user_id,transaction_id,phone_number,operator_name,operator_code,country_iso,sku_code,plan_id,product_name,send_amount,send_currency,receive_amount,receive_currency,service_fee,tax,status,provider,provider_ref,metadata,created_at,transactions(id,user_id,amount,currency,status,metadata)&limit=1`,
+  let res = await supabaseRest(
+    `recharge_orders?or=(id.eq.${enc(orderId)},transaction_id.eq.${enc(orderId)})&select=id,user_id,transaction_id,phone_number,operator_name,operator_code,country_iso,sku_code,plan_id,product_name,send_amount,send_currency,receive_amount,receive_currency,service_fee,tax,status,provider,provider_ref,metadata,created_at,transactions(id,user_id,amount,currency,status,metadata)&limit=1`,
     { cache: 'no-store' },
   )
+  if (!res.ok) {
+    res = await supabaseRest(
+      `recharge_orders?id=eq.${enc(orderId)}&select=id,user_id,transaction_id,phone_number,operator_name,operator_code,country_iso,sku_code,plan_id,product_name,send_amount,send_currency,receive_amount,receive_currency,service_fee,tax,status,provider,provider_ref,metadata,created_at,transactions(id,user_id,amount,currency,status,metadata)&limit=1`,
+      { cache: 'no-store' },
+    )
+  }
   if (!res.ok) throw new Error('Failed to load receipt data')
 
   const rows = (await res.json()) as ReceiptRow[]

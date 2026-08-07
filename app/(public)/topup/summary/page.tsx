@@ -654,13 +654,11 @@ export default function TopupSummaryPage() {
   const [operatorLogoUrl, setOperatorLogoUrl] = useState<string | null>(operatorLogo || null)
 
   useEffect(() => {
-    if (operatorLogo) {
-      setOperatorLogoUrl(operatorLogo)
-    }
-  }, [operatorLogo])
+    setOperatorLogoUrl(operatorLogo || null)
+  }, [operatorLogo, operatorProviderId, operator, countryCode])
 
   useEffect(() => {
-    if (operatorLogoUrl) return
+    if (operatorLogo) return
     if (!countryCode) return
 
     let cancelled = false
@@ -688,7 +686,7 @@ export default function TopupSummaryPage() {
     return () => {
       cancelled = true
     }
-  }, [countryCode, operatorProviderId, operator, operatorLogoUrl])
+  }, [countryCode, operatorProviderId, operator, operatorLogo])
 
   // Track store hydration state to prevent race conditions on mount
   useEffect(() => {
@@ -1513,6 +1511,7 @@ export default function TopupSummaryPage() {
                       <div className="inline-flex items-center justify-end gap-2">
                         {operatorLogoUrl ? (
                           <img
+                            key={operatorLogoUrl}
                             src={toBrowserStorageUrl(operatorLogoUrl)}
                             alt={operator}
                             className="h-10 w-14 object-contain rounded shrink-0"

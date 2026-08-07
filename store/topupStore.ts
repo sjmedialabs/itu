@@ -187,12 +187,29 @@ export const useTopupStore = create<TopupSessionState & TopupSessionActions>()(
   persist(
     (set, get) => ({
       ...initialState,
-      setPhoneDetails: ({ countryCode, phoneNumber }) =>
-        set({
-          countryCode: countryCode.toUpperCase(),
+      setPhoneDetails: ({ countryCode, phoneNumber }) => {
+        const currentCountry = get().countryCode
+        const normalizedCountry = countryCode.toUpperCase()
+        const countryChanged = currentCountry !== normalizedCountry
+        return set({
+          countryCode: normalizedCountry,
           phoneNumber,
+          ...(countryChanged
+            ? {
+                operator: '',
+                operatorLogo: null,
+                operatorProviderId: '',
+                selectedPlan: null,
+                pricing: null,
+              }
+            : {}),
+        })
+      },
+      setOperator: (operator, operatorLogo) =>
+        set({
+          operator,
+          operatorLogo: operatorLogo !== undefined ? operatorLogo : null,
         }),
-      setOperator: (operator, operatorLogo) => set({ operator, operatorLogo: operatorLogo !== undefined ? operatorLogo : get().operatorLogo }),
       selectPlan: (plan) => set({ selectedPlan: plan }),
       calculatePricing: (payload = {}) => {
         const state = get()

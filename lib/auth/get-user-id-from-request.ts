@@ -45,6 +45,22 @@ export async function getUserIdFromRequest(request: Request): Promise<string | n
   const authHeader = request.headers.get('authorization') ?? ''
   const bearerToken = authHeader.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
 
+  try {
+    const url = new URL(request.url)
+    const queryUserId = url.searchParams.get('userId') || url.searchParams.get('user_id')
+    if (queryUserId && UUID_RE.test(queryUserId)) {
+      return queryUserId
+    }
+    const queryToken = url.searchParams.get('token') || url.searchParams.get('access_token')
+    if (queryToken) {
+      if (UUID_RE.test(queryToken)) return queryToken
+      const userIdFromToken = await resolveUserIdFromAccessToken(queryToken).catch(() => null)
+      if (userIdFromToken && UUID_RE.test(userIdFromToken)) return userIdFromToken
+    }
+  } catch {
+    // ignore URL parsing error
+  }
+
   const token = readCookie(cookie, 'sb-access-token') || bearerToken
   if (token) {
     if (token.startsWith('token-')) {
