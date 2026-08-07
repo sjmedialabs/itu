@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useAuthStore } from "@/lib/stores"
+import { toBrowserStorageUrl } from "@/lib/storage/public-url"
 import { isClientSuperAdmin } from "@/lib/auth/client-role"
 import { clientHasAdminPermission } from "@/lib/auth/client-features"
 import { toast } from "sonner"
@@ -762,7 +763,7 @@ function SettingsContent() {
                     className="hidden"
                   />
                   <Avatar className="h-20 w-20 ring-2 ring-neutral-200">
-                    <AvatarImage src={user?.avatar} className="object-cover" />
+                    <AvatarImage src={toBrowserStorageUrl(user?.avatar)} className="object-cover" />
                     <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
                       {user?.name?.charAt(0) || "U"}
                     </AvatarFallback>

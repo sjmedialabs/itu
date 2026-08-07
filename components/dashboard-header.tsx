@@ -17,6 +17,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -252,7 +253,7 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-2 rounded-xl border-border/70 px-2 hover:bg-muted/60">
               <Avatar className="size-9 ring-2 ring-border/60">
-                <AvatarImage src={user?.avatar} alt={user?.name} />
+                <AvatarImage src={toBrowserStorageUrl(user?.avatar)} alt={user?.name} />
                 <AvatarFallback className="bg-muted">
                   {user?.name?.charAt(0) || 'U'}
                 </AvatarFallback>
