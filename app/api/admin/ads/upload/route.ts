@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adminCanUseFeature } from '@/lib/auth/require-admin-feature'
 import { runtimeEnv } from '@/lib/env/runtime'
+import { publicSupabaseBaseUrl } from '@/lib/storage/public-url'
 
 export async function POST(request: Request) {
   const isAuthorized = await adminCanUseFeature(request, 'ads');
@@ -16,17 +17,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 })
     }
 
-    const baseRaw = runtimeEnv('SUPABASE_URL')
+    // Upload API uses internal SUPABASE_URL; saved public URL uses browser-reachable base.
+    const apiRaw = runtimeEnv('SUPABASE_URL')
     const key = runtimeEnv('SUPABASE_SERVICE_ROLE_KEY')
-    if (!baseRaw || !key) {
+    if (!apiRaw || !key) {
       return NextResponse.json({ error: 'Supabase configuration missing' }, { status: 500 })
     }
-    
-    const base = baseRaw.trim().replace(/\/rest\/v1\/?$/i, '').replace(/\/$/, '')
+
+    const apiBase = apiRaw.trim().replace(/\/rest\/v1\/?$/i, '').replace(/\/$/, '')
+    const publicBase =
+      runtimeEnv('NEXT_PUBLIC_SUPABASE_URL') ||
+      runtimeEnv('CDN_BASE_URL') ||
+      publicSupabaseBaseUrl() ||
+      apiBase
     const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`
     const bucket = 'ads_media'
 
-    const storageUrl = `${base}/storage/v1/object/${bucket}/${fileName}`
+    const storageUrl = `${apiBase}/storage/v1/object/${bucket}/${fileName}`
 
     const res = await fetch(storageUrl, {
       method: 'POST',
@@ -44,8 +51,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to upload to Supabase Storage' }, { status: 500 })
     }
 
-    // Since the bucket is public, the URL is accessible directly
-    const publicUrl = `${base}/storage/v1/object/public/${bucket}/${fileName}`
+    const publicUrl = `${publicBase.replace(/\/$/, '')}/storage/v1/object/public/${bucket}/${fileName}`
 
     return NextResponse.json({ url: publicUrl })
   } catch (error: any) {

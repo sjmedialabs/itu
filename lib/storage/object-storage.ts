@@ -58,13 +58,18 @@ export async function uploadObject(input: UploadObjectInput): Promise<UploadObje
     throw new Error(`storage_upload_failed:${res.status}:${err}`)
   }
 
-  // Browser-reachable URL (NEXT_PUBLIC_SUPABASE_URL), not Docker-internal Kong.
-  const publicBase = publicSupabaseBaseUrl() || apiBase
+  // Browser-reachable URL from runtime env (K8s secret / .env), never build-time bake.
+  // Prefer NEXT_PUBLIC_SUPABASE_URL (e.g. http://host:8000), not internal Kong.
+  const publicBase =
+    runtimeEnv('NEXT_PUBLIC_SUPABASE_URL') ||
+    runtimeEnv('CDN_BASE_URL') ||
+    publicSupabaseBaseUrl() ||
+    apiBase
 
   return {
     bucket: input.bucket,
     path,
-    publicUrl: `${publicBase}/storage/v1/object/public/${input.bucket}/${path}`,
+    publicUrl: `${publicBase.replace(/\/$/, '')}/storage/v1/object/public/${input.bucket}/${path}`,
   }
 }
 
