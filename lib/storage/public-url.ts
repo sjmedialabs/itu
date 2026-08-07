@@ -1,18 +1,34 @@
 /**
  * Browser-reachable Supabase storage URLs.
  * Keep this module free of server-only imports so client components can use it.
+ *
+ * IMPORTANT: read env via dynamic key access (`process.env[name]`), never
+ * `process.env.NEXT_PUBLIC_SUPABASE_URL`. Next.js inlines the static form at
+ * build time, which can bake an old host/port (e.g. :54421) into the image.
  */
 
 function trimBase(raw: string): string {
   return raw.trim().replace(/\/rest\/v1\/?$/i, '').replace(/\/$/, '')
 }
 
-/** Prefer NEXT_PUBLIC (browser) then SUPABASE_URL (server). */
+/** Dynamic lookup so server runtime picks up deploy-time .env / K8s secrets. */
+function readEnv(name: string): string {
+  if (typeof process === 'undefined') return ''
+  const v = process.env[name]
+  return typeof v === 'string' ? v.trim() : ''
+}
+
+/**
+ * Prefer browser-reachable public URL, then CDN, then internal SUPABASE_URL.
+ * Used when persisting storage object URLs (avatars, tickets, ads, logos).
+ */
 export function publicSupabaseBaseUrl(): string {
-  const pub = (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_SUPABASE_URL : '') || ''
-  if (pub.trim()) return trimBase(pub)
-  const internal = (typeof process !== 'undefined' ? process.env.SUPABASE_URL : '') || ''
-  if (internal.trim()) return trimBase(internal)
+  const pub = readEnv('NEXT_PUBLIC_SUPABASE_URL')
+  if (pub) return trimBase(pub)
+  const cdn = readEnv('CDN_BASE_URL')
+  if (cdn) return trimBase(cdn)
+  const internal = readEnv('SUPABASE_URL')
+  if (internal) return trimBase(internal)
   return ''
 }
 
