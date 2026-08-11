@@ -58,6 +58,7 @@ const nextConfig = {
     '192.168.1.39',
     '192.168.1.13',
     '192.168.1.11',
+    '192.168.1.19',
     '194.164.150.223',
     ...(process.env.ALLOWED_DEV_ORIGINS
       ? process.env.ALLOWED_DEV_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
