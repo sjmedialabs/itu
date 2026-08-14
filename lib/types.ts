@@ -56,6 +56,10 @@ export interface Transaction {
     country_id?: string
     operator_id?: string
     plan_id?: string
+    operatorLogo?: string
+    logo?: string
+    operator_logo?: string
+    logoUrl?: string
   }
 }
 

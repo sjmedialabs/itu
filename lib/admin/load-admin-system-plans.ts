@@ -61,6 +61,7 @@ export type AdminSystemPlanRow = {
   country_iso3: string
   operator_name: string
   operator_ref: string
+  operator_logo?: string | null
   category: string
   active: boolean
   /** Customer recharge / face value (not provider wholesale cost). */
@@ -73,9 +74,32 @@ export type AdminSystemPlanRow = {
 
 async function loadSystemOperatorsInfo(
   ids: string[],
-): Promise<Map<string, { name: string; status: string; countryId: string }>> {
-  const map = new Map<string, { name: string; status: string; countryId: string }>()
+): Promise<Map<string, { name: string; status: string; countryId: string; logo: string | null }>> {
+  const map = new Map<string, { name: string; status: string; countryId: string; logo: string | null }>()
   if (!ids.length) return map
+
+  const logoMap = new Map<string, string>()
+  const [logosRes, opsRes] = await Promise.all([
+    supabaseRest('operator_logos?logo_status=eq.FOUND&select=system_operator_id,logo_url&limit=10000', { cache: 'no-store' }).catch(() => null),
+    supabaseRest('operators?select=id,name,logo&limit=10000', { cache: 'no-store' }).catch(() => null),
+  ])
+
+  if (logosRes?.ok) {
+    const logoRows = (await logosRes.json().catch(() => [])) as Array<{ system_operator_id?: string; logo_url?: string }>
+    for (const lr of logoRows) {
+      if (lr.system_operator_id && lr.logo_url) {
+        logoMap.set(lr.system_operator_id.toLowerCase(), lr.logo_url)
+      }
+    }
+  }
+
+  if (opsRes?.ok) {
+    const opRows = (await opsRes.json().catch(() => [])) as Array<{ id?: string; name?: string; logo?: string }>
+    for (const r of opRows) {
+      if (r.id && r.logo) logoMap.set(r.id.toLowerCase(), r.logo)
+      if (r.name && r.logo) logoMap.set(r.name.toLowerCase(), r.logo)
+    }
+  }
 
   const unique = [...new Set(ids)]
   for (let i = 0; i < unique.length; i += 100) {
@@ -91,12 +115,16 @@ async function loadSystemOperatorsInfo(
       status?: string
       country_id?: string
     }>
+
     for (const row of rows) {
       if (!row.id) continue
+      const name = row.system_operator_name || ''
+      const logo = logoMap.get(row.id.toLowerCase()) || (name ? logoMap.get(name.toLowerCase()) : null) || null
       map.set(row.id, {
-        name: row.system_operator_name || '',
+        name,
         status: (row.status || 'ACTIVE').toUpperCase(),
         countryId: row.country_id || '',
+        logo,
       })
     }
   }
@@ -268,6 +296,7 @@ export async function loadAdminSystemPlans(input: {
       country_iso3: countryIso3,
       operator_name: opInfo?.name || opId,
       operator_ref: opId,
+      operator_logo: opInfo?.logo || null,
       category: row.plan_type || 'Unknown',
       active,
       price,

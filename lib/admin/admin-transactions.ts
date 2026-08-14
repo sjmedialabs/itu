@@ -136,6 +136,7 @@ export type AdminTransactionRecord = {
     operatorName: string
     status: string
     phoneNumber?: string
+    operatorLogo?: string
   } | null
 }
 
@@ -343,6 +344,7 @@ function enrichPageRows(
   fallbackRates: Awaited<ReturnType<typeof loadMarginRateContext>>['fallbackRates'],
   routingCosts: Awaited<ReturnType<typeof loadRoutingCostsForItuRows>>,
   planNameMap: Map<string, string>,
+  operatorLogoMap?: Map<string, string>,
 ): AdminTransactionRecord[] {
   return pageRows.map((row) => {
     const base = mapBaseRechargeOrder(row)
@@ -432,6 +434,28 @@ function enrichPageRows(
       }
     }
 
+    const rawOpId = typeof mergedMeta.operator_id === 'string' ? mergedMeta.operator_id.trim() : ''
+    const cleanOpId = rawOpId.startsWith('system:') ? rawOpId.slice(7) : rawOpId
+    const opName = String(row.operator_name || mergedMeta.carrierName || mergedMeta.carrier || '').trim()
+
+    const existingLogo =
+      (mergedMeta.operatorLogo as string) ||
+      (mergedMeta.logo as string) ||
+      (mergedMeta.operator_logo as string) ||
+      (mergedMeta.logoUrl as string)
+
+    const resolvedLogo =
+      existingLogo ||
+      (cleanOpId ? operatorLogoMap?.get(cleanOpId.toLowerCase()) : null) ||
+      (rawOpId ? operatorLogoMap?.get(rawOpId.toLowerCase()) : null) ||
+      (opName ? operatorLogoMap?.get(opName.toLowerCase()) : null) ||
+      null
+
+    if (resolvedLogo) {
+      mergedMeta.operatorLogo = resolvedLogo
+      mergedMeta.logo = resolvedLogo
+    }
+
     return {
       ...base,
       metadata: mergedMeta,
@@ -441,6 +465,7 @@ function enrichPageRows(
       rechargeDetails: {
         ...base.rechargeDetails!,
         productName: planName,
+        operatorLogo: resolvedLogo || undefined,
       },
       margin: itu.marginReporting,
       marginCurrency: reportingCurrency,
@@ -520,6 +545,69 @@ export async function loadAdminTransactions(query: AdminTransactionsQuery): Prom
     return ids
   })
 
+  // Build operator logo map for page rows
+  const operatorLogoMap = new Map<string, string>()
+  const unresolvedOperatorIds = new Set<string>()
+  for (const row of pageRows) {
+    const rawOpId = row.metadata?.operator_id
+    if (typeof rawOpId === 'string' && rawOpId.trim()) {
+      const opId = rawOpId.trim()
+      unresolvedOperatorIds.add(opId)
+      if (opId.startsWith('system:')) {
+        unresolvedOperatorIds.add(opId.slice(7))
+      }
+    }
+    const name = row.operator_name || row.metadata?.carrierName || row.metadata?.carrier
+    if (typeof name === 'string' && name.trim()) {
+      operatorLogoMap.set(name.trim().toLowerCase(), '')
+    }
+  }
+
+  const idList = Array.from(unresolvedOperatorIds)
+  const uuidIds = idList.filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+  const codeIds = idList.filter((id) => !/^[0-9a-f-]{36}$/i.test(id))
+
+  if (uuidIds.length > 0) {
+    const logosRes = await supabaseRest(
+      `operator_logos?system_operator_id=in.(${uuidIds.map(encodeURIComponent).join(',')})&logo_status=eq.FOUND&select=system_operator_id,logo_url`,
+      { cache: 'no-store' },
+    ).catch(() => null)
+    if (logosRes?.ok) {
+      const logoRows = await logosRes.json().catch(() => [])
+      for (const lr of logoRows) {
+        if (lr.system_operator_id && lr.logo_url) {
+          operatorLogoMap.set(lr.system_operator_id.toLowerCase(), lr.logo_url)
+        }
+      }
+    }
+
+    const opsRes = await supabaseRest(
+      `operators?id=in.(${uuidIds.map(encodeURIComponent).join(',')})&select=id,name,logo`,
+      { cache: 'no-store' },
+    ).catch(() => null)
+    if (opsRes?.ok) {
+      const rows = await opsRes.json().catch(() => [])
+      for (const r of rows) {
+        if (r.id && r.logo) operatorLogoMap.set(r.id.toLowerCase(), r.logo)
+        if (r.name && r.logo) operatorLogoMap.set(r.name.toLowerCase(), r.logo)
+      }
+    }
+  }
+
+  if (codeIds.length > 0) {
+    const opsByCodeRes = await supabaseRest(
+      `operators?code=in.(${codeIds.map(encodeURIComponent).join(',')})&select=code,name,logo`,
+      { cache: 'no-store' },
+    ).catch(() => null)
+    if (opsByCodeRes?.ok) {
+      const rows = await opsByCodeRes.json().catch(() => [])
+      for (const r of rows) {
+        if (r.code && r.logo) operatorLogoMap.set(r.code.toLowerCase(), r.logo)
+        if (r.name && r.logo) operatorLogoMap.set(r.name.toLowerCase(), r.logo)
+      }
+    }
+  }
+
   const planNameMap = await resolvePlanNameMap(planIds)
   const transactions = enrichPageRows(
     pageRows,
@@ -528,6 +616,7 @@ export async function loadAdminTransactions(query: AdminTransactionsQuery): Prom
     fallbackRates,
     routingCosts,
     planNameMap,
+    operatorLogoMap,
   )
 
   let completedOrders = 0

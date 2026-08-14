@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatMoney, formatProviderCostDual } from '@/lib/routing/log-pricing'
 import { formatPlanRechargeValue } from '@/lib/catalog/format-plan-recharge-value'
 import { useProviderDisplay } from '@/components/admin/provider-display-context'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 import { cn } from '@/lib/utils'
 
 type LogRow = {
@@ -27,6 +28,7 @@ type LogRow = {
   countryId: string | null
   operatorId: string | null
   operatorName?: string | null
+  operatorLogo?: string | null
   productId: string | null
   planName?: string | null
   planRechargeAmount?: number | null
@@ -323,8 +325,23 @@ export default function RoutingLogsPage() {
                             </div>
                             <TableCell className="font-mono text-xs truncate" title={log.transactionId ?? ''}>{log.transactionId ?? '—'}</TableCell>
                             <TableCell>{log.countryId ?? '—'}</TableCell>
-                            <TableCell className="truncate" title={log.operatorName ?? log.operatorId ?? ''}>
-                              {log.operatorName ?? log.operatorId ?? '—'}
+                            <TableCell className="min-w-0" title={log.operatorName ?? log.operatorId ?? ''}>
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {(() => {
+                                  const logoUrl = log.operatorLogo ? toBrowserStorageUrl(String(log.operatorLogo)) : null
+                                  return logoUrl ? (
+                                    <img
+                                      src={logoUrl}
+                                      alt={String(log.operatorName ?? log.operatorId)}
+                                      className="h-4 max-w-[40px] w-auto object-contain shrink-0"
+                                      onError={(e) => {
+                                        (e.currentTarget as HTMLElement).style.display = 'none'
+                                      }}
+                                    />
+                                  ) : null
+                                })()}
+                                <span className="truncate">{log.operatorName ?? log.operatorId ?? '—'}</span>
+                              </div>
                             </TableCell>
                             <TableCell className="min-w-0">
                               {log.planName ? (
