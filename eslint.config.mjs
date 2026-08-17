@@ -19,6 +19,7 @@ const tsSoft = {
   ],
   '@typescript-eslint/ban-ts-comment': 'warn',
   '@typescript-eslint/no-empty-object-type': 'warn',
+  '@typescript-eslint/no-require-imports': 'warn',
 }
 
 const otherSoft = {
@@ -53,6 +54,8 @@ export default defineConfig([
   globalIgnores([
     '.next/**',
     'node_modules/**',
+    'sidecar-dist/**',
+    'dist/**',
     'supabase-local/**',
     'scratch/**',
     'scratch.mjs',

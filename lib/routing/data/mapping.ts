@@ -293,7 +293,7 @@ export async function enrichRoutingLogsWithPricing<T extends RoutingLogRow>(logs
 
 export async function enrichRoutingLogsWithOperatorNames<T extends RoutingLogRow>(
   logs: T[],
-): Promise<(T & { operatorName: string | null })[]> {
+): Promise<(T & { operatorName: string | null; operatorLogo: string | null })[]> {
   if (logs.length === 0) return []
 
   const uuidSet = new Set<string>()
@@ -304,6 +304,30 @@ export async function enrichRoutingLogsWithOperatorNames<T extends RoutingLogRow
     if (uuid) uuidSet.add(uuid)
     const country = log.countryId?.trim().toUpperCase()
     if (country) countrySet.add(country)
+  }
+
+  const logoMap = new Map<string, string>()
+  const [logosRes, opsRes] = await Promise.all([
+    supabaseRest('operator_logos?logo_status=eq.FOUND&select=system_operator_id,logo_url&limit=10000', { cache: 'no-store' }).catch(() => null),
+    supabaseRest('operators?select=id,name,code,logo&limit=10000', { cache: 'no-store' }).catch(() => null),
+  ])
+
+  if (logosRes?.ok) {
+    const logoRows = (await logosRes.json().catch(() => [])) as Array<{ system_operator_id?: string; logo_url?: string }>
+    for (const lr of logoRows) {
+      if (lr.system_operator_id && lr.logo_url) {
+        logoMap.set(lr.system_operator_id.toLowerCase(), lr.logo_url)
+      }
+    }
+  }
+
+  if (opsRes?.ok) {
+    const opRows = (await opsRes.json().catch(() => [])) as Array<{ id?: string; name?: string; code?: string; logo?: string }>
+    for (const r of opRows) {
+      if (r.id && r.logo) logoMap.set(r.id.toLowerCase(), r.logo)
+      if (r.name && r.logo) logoMap.set(r.name.toLowerCase(), r.logo)
+      if (r.code && r.logo) logoMap.set(r.code.toLowerCase(), r.logo)
+    }
   }
 
   const nameByUuid = new Map<string, string>()
@@ -370,7 +394,17 @@ export async function enrichRoutingLogsWithOperatorNames<T extends RoutingLogRow
       }
     }
 
-    return { ...log, operatorName }
+    const cleanUuid = uuid?.toLowerCase() || ''
+    const cleanRaw = raw?.trim().toLowerCase() || ''
+    const cleanName = operatorName?.trim().toLowerCase() || ''
+
+    const operatorLogo =
+      (cleanUuid ? logoMap.get(cleanUuid) : null) ||
+      (cleanRaw ? logoMap.get(cleanRaw) : null) ||
+      (cleanName ? logoMap.get(cleanName) : null) ||
+      null
+
+    return { ...log, operatorName, operatorLogo }
   })
 }
 

@@ -32,12 +32,14 @@ import { useAuthStore } from '@/lib/stores'
 import { clientHasAdminPermission } from '@/lib/auth/client-features'
 import { useProviderDisplay } from '@/components/admin/provider-display-context'
 import { matchesProviderListSearch } from '@/lib/admin/operator-list-search'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 
 type ProductPlan = {
   id: string
   plan_name: string
   country_iso3: string
   operator_name: string
+  operator_logo?: string | null
   category: string
   active: boolean
   price?: number | null
@@ -684,7 +686,24 @@ export default function AdminProductsPage() {
                         '—'
                       )}
                     </TableCell>
-                    <TableCell>{plan.operator_name || '—'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 min-w-0">
+                        {(() => {
+                          const logoUrl = plan.operator_logo ? toBrowserStorageUrl(String(plan.operator_logo)) : null
+                          return logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt={String(plan.operator_name)}
+                              className="h-5 max-w-[50px] w-auto object-contain shrink-0"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none'
+                              }}
+                            />
+                          ) : null
+                        })()}
+                        <span className="truncate">{plan.operator_name || '—'}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {(plan.provider_names ?? []).length > 0
                         ? displayProvidersCsv(plan.provider_names ?? [])

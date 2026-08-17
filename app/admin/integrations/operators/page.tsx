@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/lib/stores'
 import { clientHasAdminPermission } from '@/lib/auth/client-features'
 import { useProviderDisplay } from '@/components/admin/provider-display-context'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 
 export function CompactDateTime({ value }: { value: unknown }) {
   const d = new Date(String(value ?? ''))
@@ -586,6 +587,7 @@ export default function OperatorsPage() {
         dateValue: op.updated_at || op.created_at,
         isSystem: true,
         confidenceLevel: op.confidence_level || 'UNKNOWN',
+        logo: op.logo || op.operatorLogo || op.logo_url || null,
       }))
     } else {
       mapped = list.map((op) => ({
@@ -599,6 +601,7 @@ export default function OperatorsPage() {
         status: op.status,
         dateValue: op.fetched_at,
         isSystem: false,
+        logo: op.logo || op.operatorLogo || op.logo_url || null,
       }))
     }
 
@@ -974,22 +977,37 @@ export default function OperatorsPage() {
 
                         {/* Operator Column */}
                         <TableCell>
-                          <div className="min-w-0 leading-tight">
-                            <div className="truncate font-semibold text-foreground">{row.mainName}</div>
-                            {dataType === 'provider' && row.providerOperatorId ? (
-                              <div className="truncate text-xs text-muted-foreground mt-0.5 font-mono">
-                                {row.providerOperatorId} (
-                                {displayProvider({
-                                  id: row.providerId,
-                                  name: row.providerRefName ?? 'Raw',
-                                })}
-                                )
-                              </div>
-                            ) : row.secondaryText ? (
-                              <div className="truncate text-xs text-muted-foreground mt-0.5 font-mono">
-                                {row.secondaryText}
-                              </div>
-                            ) : null}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {(() => {
+                              const logoUrl = row.logo ? toBrowserStorageUrl(String(row.logo)) : null
+                              return logoUrl ? (
+                                <img
+                                  src={logoUrl}
+                                  alt={String(row.mainName)}
+                                  className="h-6 max-w-[60px] w-auto object-contain shrink-0"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = 'none'
+                                  }}
+                                />
+                              ) : null
+                            })()}
+                            <div className="min-w-0 leading-tight">
+                              <div className="truncate font-semibold text-foreground">{row.mainName}</div>
+                              {dataType === 'provider' && row.providerOperatorId ? (
+                                <div className="truncate text-xs text-muted-foreground mt-0.5 font-mono">
+                                  {row.providerOperatorId} (
+                                  {displayProvider({
+                                    id: row.providerId,
+                                    name: row.providerRefName ?? 'Raw',
+                                  })}
+                                  )
+                                </div>
+                              ) : row.secondaryText ? (
+                                <div className="truncate text-xs text-muted-foreground mt-0.5 font-mono">
+                                  {row.secondaryText}
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </TableCell>
 

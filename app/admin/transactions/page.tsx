@@ -35,6 +35,7 @@ import { toast } from 'sonner'
 import { resolveTransactionDisplayStatus } from '@/lib/transactions/display-status'
 import { resolveRoutingTypeLabel } from '@/lib/transactions/routing-type'
 import { resolveCustomerDisplayName } from '@/lib/auth/customer-display'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 import {
   Dialog,
   DialogContent,
@@ -94,6 +95,7 @@ type AdminTransaction = {
     operatorName: string
     status: string
     phoneNumber?: string
+    operatorLogo?: string
   } | null
 }
 
@@ -317,6 +319,7 @@ export default function AdminTransactionsPage() {
   const openTransactionDetail = (order: AdminTransaction) => {
     const metadata = order.metadata ?? {}
     const summary = order.rechargeSummary
+    const operatorLogo = (metadata.operatorLogo || metadata.logo || metadata.operator_logo || metadata.logoUrl || order.rechargeDetails?.operatorLogo) as string | undefined
     setDetailModel({
       id: order.id,
       createdAt: order.createdAt,
@@ -329,6 +332,7 @@ export default function AdminTransactionsPage() {
       customerCountry: getCustomerCountry(order),
       destinationCountry: String(metadata.countryName ?? metadata.country ?? metadata.country_id ?? '—'),
       networkOperator: order.rechargeDetails?.operatorName || order.metadata?.operator_id || order.metadata?.operator || String(order.metadata?.carrierName ?? '—'),
+      operatorLogo: operatorLogo,
       mobileNumber: getDestinationPhoneNumber(order),
       planId: summary?.planId,
       planName: summary?.planName ?? getPlanName(order),
@@ -547,9 +551,25 @@ export default function AdminTransactionsPage() {
                           <p className="font-medium text-sm">
                             {getDestinationPhoneNumber(order)}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {order.rechargeDetails?.operatorName || order.metadata?.operator_id || order.metadata?.operator || String(order.metadata?.carrierName ?? '—')}
-                          </p>
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                            {(() => {
+                              const logo = order.metadata?.operatorLogo || order.metadata?.logo || order.rechargeDetails?.operatorLogo
+                              const logoUrl = logo ? toBrowserStorageUrl(String(logo)) : null
+                              return logoUrl ? (
+                                <img
+                                  src={logoUrl}
+                                  alt="Operator logo"
+                                  className="h-3.5 max-w-[40px] w-auto object-contain shrink-0"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = 'none'
+                                  }}
+                                />
+                              ) : null
+                            })()}
+                            <span>
+                              {order.rechargeDetails?.operatorName || order.metadata?.operator_id || order.metadata?.operator || String(order.metadata?.carrierName ?? '—')}
+                            </span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>

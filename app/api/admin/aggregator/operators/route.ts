@@ -42,7 +42,16 @@ export async function GET(request: Request) {
         : { serviceDomain }),
   }
 
-  const [rawOperators, systemOperators, providers, mappingsRes, countriesRes, planProviderMap] = await Promise.all([
+  const [
+    rawOperators,
+    systemOperators,
+    providers,
+    mappingsRes,
+    countriesRes,
+    planProviderMap,
+    operatorLogosRes,
+    operatorsRes,
+  ] = await Promise.all([
     aggListRawOperators({
       limit: Number.isFinite(limit) ? limit : 5000,
       offset: Number.isFinite(offset) ? offset : 0,
@@ -58,16 +67,50 @@ export async function GET(request: Request) {
       () => null as Response | null,
     ),
     loadProviderIdsBySystemOperatorFromPlans(),
+    supabaseRest('operator_logos?logo_status=eq.FOUND&select=system_operator_id,logo_url&limit=10000', { cache: 'no-store' }).catch(
+      () => null as Response | null,
+    ),
+    supabaseRest('operators?select=id,name,code,logo&limit=10000', { cache: 'no-store' }).catch(
+      () => null as Response | null,
+    ),
   ])
+
+  const operatorLogoMap = new Map<string, string>()
+
+  if (operatorLogosRes?.ok) {
+    const logoRows = (await operatorLogosRes.json().catch(() => [])) as any[]
+    for (const lr of logoRows) {
+      if (lr.system_operator_id && lr.logo_url) {
+        operatorLogoMap.set(String(lr.system_operator_id).toLowerCase(), lr.logo_url)
+      }
+    }
+  }
+
+  if (operatorsRes?.ok) {
+    const opRows = (await operatorsRes.json().catch(() => [])) as any[]
+    for (const r of opRows) {
+      if (r.id && r.logo) operatorLogoMap.set(String(r.id).toLowerCase(), r.logo)
+      if (r.name && r.logo) operatorLogoMap.set(String(r.name).toLowerCase(), r.logo)
+      if (r.code && r.logo) operatorLogoMap.set(String(r.code).toLowerCase(), r.logo)
+    }
+  }
 
   const providerMap = new Map(providers.map((p: any) => [p.id, p]))
 
   const enrichedRawOperators = rawOperators.map((op: any) => {
     const provider = providerMap.get(op.service_provider_id)
+    const logoUrl =
+      op.logo_url ||
+      op.logo ||
+      operatorLogoMap.get(String(op.id).toLowerCase()) ||
+      operatorLogoMap.get(String(op.provider_operator_name ?? '').trim().toLowerCase()) ||
+      null
     return {
       ...op,
       provider_name: provider?.name ?? 'Unknown Provider',
       provider_code: provider?.code ?? '',
+      logo: logoUrl,
+      operatorLogo: logoUrl,
     }
   })
 
@@ -100,8 +143,16 @@ export async function GET(request: Request) {
     )
     const providerNames = providerIds.map((pid) => providerMap.get(pid)?.name ?? 'Unknown Provider')
     const providerCodes = providerIds.map((pid) => providerMap.get(pid)?.code ?? '').filter(Boolean)
+    const logoUrl =
+      op.logo_url ||
+      op.logo ||
+      operatorLogoMap.get(String(op.id).toLowerCase()) ||
+      operatorLogoMap.get(String(op.system_operator_name ?? '').trim().toLowerCase()) ||
+      null
     return {
       ...op,
+      logo: logoUrl,
+      operatorLogo: logoUrl,
       mappedProviderIds: providerIds,
       mappedProviderNames: providerNames,
       mappedProviderCodes: providerCodes,

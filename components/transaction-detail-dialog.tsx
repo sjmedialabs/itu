@@ -16,6 +16,7 @@ import { TicketStatusBadge } from '@/components/ticket-status-badge'
 import { apiAdminListTickets, apiListTickets, type TicketUserHeaders } from '@/lib/tickets/client-api'
 import type { Ticket } from '@/lib/tickets/types'
 import { toast } from 'sonner'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 
 export type TransactionDetailModel = {
   id: string
@@ -29,6 +30,7 @@ export type TransactionDetailModel = {
   customerCountry?: string
   destinationCountry?: string
   networkOperator?: string
+  operatorLogo?: string
   mobileNumber?: string
   planId?: string
   planName?: string
@@ -171,7 +173,24 @@ export function TransactionDetailDialog({ open, onOpenChange, transaction, viewe
                 <h3 className="mb-2 text-sm font-semibold">Order Details</h3>
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
                   <p><span className="text-muted-foreground">Destination Country:</span> {transaction.destinationCountry || '—'}</p>
-                  <p><span className="text-muted-foreground">Network / Operator:</span> {transaction.networkOperator || '—'}</p>
+                  <p>
+                    <span className="text-muted-foreground">Network / Operator:</span>{' '}
+                    {transaction.operatorLogo ? (
+                      <span className="inline-flex items-center gap-2 align-middle ml-1">
+                        <img
+                          src={toBrowserStorageUrl(transaction.operatorLogo)}
+                          alt={transaction.networkOperator || 'Operator logo'}
+                          className="h-5 max-w-[60px] w-auto object-contain shrink-0 inline-block"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none'
+                          }}
+                        />
+                        <span>{transaction.networkOperator || '—'}</span>
+                      </span>
+                    ) : (
+                      transaction.networkOperator || '—'
+                    )}
+                  </p>
                   <p><span className="text-muted-foreground">Mobile / Account:</span> {transaction.mobileNumber || '—'}</p>
                   <p><span className="text-muted-foreground">Plan ID:</span> <span className="font-mono text-xs">{transaction.planId || '—'}</span></p>
                   <p><span className="text-muted-foreground">Plan Name:</span> {transaction.planName || '—'}</p>

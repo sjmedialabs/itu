@@ -63,6 +63,7 @@ import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { getCountryName, getFlagEmoji } from '@/lib/country-codes'
+import { toBrowserStorageUrl } from '@/lib/storage/public-url'
 
 interface SavedContact {
   phone: string
@@ -340,7 +341,9 @@ function TransactionsPageContent() {
       destinationCountry = `${getFlagEmoji(destinationCountry)} ${getCountryName(destinationCountry)}`
     }
 
-    const networkOperator = txn.metadata?.carrierName || txn.metadata?.carrier || txn.metadata?.operator_id || '—'
+    const meta = (txn.metadata ?? {}) as Record<string, unknown>
+    const networkOperator = (meta.carrierName || meta.carrier || meta.operator_id || '—') as string
+    const operatorLogo = (meta.operatorLogo || meta.logo || meta.operator_logo || meta.logoUrl) as string | undefined
     const normalizedStatus = txn.status === 'completed' ? 'success' : txn.status === 'failed' ? 'failed' : 'pending'
     setDetailModel({
       id: txn.id,
@@ -363,6 +366,7 @@ function TransactionsPageContent() {
       })(),
       destinationCountry,
       networkOperator,
+      operatorLogo,
       mobileNumber: txn.metadata?.mobile_number || txn.metadata?.phoneNumber || '—',
       paymentMethod: (txn.metadata as any)?.razorpay_payment_id && (txn.metadata as any).razorpay_payment_id !== 'wallet' ? 'Card' : 'Wallet',
       paymentStatus: ((txn.metadata as any)?.razorpay_payment_id || (txn.metadata as any)?.payment_order_id) ? 'completed' : txn.status,
@@ -885,7 +889,32 @@ function TransactionsPageContent() {
                           return countryId;
                         })()}
                       </TableCell>
-                      <TableCell>{txn.metadata?.carrierName || txn.metadata?.carrier || txn.metadata?.operator_id || '—'}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const meta = (txn.metadata ?? {}) as Record<string, unknown>
+                          const operatorName = (meta.carrierName || meta.carrier || meta.operator_id || '—') as string
+                          const logoUrl = (meta.operatorLogo || meta.logo || meta.operator_logo || meta.logoUrl) as string | undefined
+                          const formattedLogoUrl = logoUrl ? toBrowserStorageUrl(String(logoUrl)) : null
+
+                          if (operatorName === '—' && !formattedLogoUrl) return '—'
+
+                          return (
+                            <div className="flex items-center gap-2.5">
+                              {formattedLogoUrl ? (
+                                <img
+                                  src={formattedLogoUrl}
+                                  alt={String(operatorName)}
+                                  className="h-6 max-w-[70px] w-auto object-contain shrink-0"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = 'none'
+                                  }}
+                                />
+                              ) : null}
+                              <span className="font-medium text-sm text-neutral-900">{operatorName}</span>
+                            </div>
+                          )
+                        })()}
+                      </TableCell>
                       <TableCell className="font-semibold">
                         {txn.currency === 'PTS' ? `${txn.amount} pts` : `${txn.amount.toFixed(2)}`}
                       </TableCell>
