@@ -7,6 +7,7 @@ export type UserNotificationType =
   | 'recharge_completed'
   | 'recharge_failed'
   | 'scheduled_recharge'
+  | 'amount_refunded'
   | 'general'
 
 export type UserNotificationItem = {

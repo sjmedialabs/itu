@@ -77,13 +77,13 @@ export async function POST(request: Request) {
       details: { ticketId: ticket.id, userId: user.id, email: user.email, subject, category },
     })
 
-    await createUserNotification({
-      userId: user.id,
-      title: 'Support Ticket Submitted',
-      message: `Your ticket "${subject}" has been submitted successfully. Our support team will get back to you soon.`,
-      type: 'support_ticket_status',
-      details: { ticketId: ticket.id, ticketSubject: subject },
-    }).catch(() => {})
+    // await createUserNotification({
+    //   userId: user.id,
+    //   title: 'Support Ticket Submitted',
+    //   message: `Your ticket "${subject}" has been submitted successfully. Our support team will get back to you soon.`,
+    //   type: 'support_ticket_status',
+    //   details: { ticketId: ticket.id, ticketSubject: subject },
+    // }).catch(() => {})
 
     return NextResponse.json({ ticket })
   } catch (e) {
