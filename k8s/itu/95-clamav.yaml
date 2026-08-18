@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: itu-clamav
+  namespace: itu
+  labels:
+    app: itu-clamav
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: itu-clamav
+  template:
+    metadata:
+      labels:
+        app: itu-clamav
+    spec:
+      containers:
+        - name: clamav
+          image: clamav/clamav:1.4
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CLAMD_CONF_MaxFileSize
+              value: "100M"
+            - name: CLAMD_CONF_StreamMaxLength
+              value: "100M"
+          ports:
+            - containerPort: 3310
+              name: clamav-tcp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          livenessProbe:
+            tcpSocket:
+              port: 3310
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            tcpSocket:
+              port: 3310
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clamav
+  namespace: itu
+  labels:
+    app: itu-clamav
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3310
+      targetPort: 3310
+      name: clamav-tcp
+  selector:
+    app: itu-clamav

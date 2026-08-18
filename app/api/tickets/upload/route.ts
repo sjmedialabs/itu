@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getUserIdFromRequest } from '@/lib/auth/get-user-id-from-request'
-import {
-  sanitizeStorageFileName,
-  STORAGE_BUCKETS,
-  uploadObject,
-} from '@/lib/storage/object-storage'
+import { STORAGE_BUCKETS, uploadObject } from '@/lib/storage/object-storage'
+import { processSecureUpload, cleanupQuarantineFile } from '@/lib/security/upload-security'
 
 export async function POST(req: Request) {
   try {
-    // Resolve user via cookie / Bearer header / x-user-id (same as other API routes)
+    // Resolve user via cookie / Bearer header / x-user-id
     const userId = await getUserIdFromRequest(req)
 
     if (!userId) {
@@ -22,46 +19,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'No file uploaded' }, { status: 400 })
     }
 
-    const fileType = file.type
-    const allowedMimeTypes = [
-      'image/png',
-      'image/jpeg',
-      'image/jpg',
-      'image/gif',
-      'image/webp',
-      'application/pdf',
-    ]
-    if (!allowedMimeTypes.includes(fileType)) {
+    // Run Centralized Upload Security Pipeline (Quarantine -> Magic-Bytes -> ClamAV)
+    const secResult = await processSecureUpload({
+      file,
+      originalName: file.name,
+      declaredMimeType: file.type,
+      category: 'document',
+    })
+
+    if (!secResult.ok) {
       return NextResponse.json(
-        { ok: false, error: 'Only image files (PNG, JPG, JPEG, GIF, WEBP) and PDF files are allowed.' },
-        { status: 400 }
+        { ok: false, error: secResult.error },
+        { status: secResult.status }
       )
     }
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || ''
-    const allowedExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'pdf']
-    if (!allowedExtensions.includes(ext)) {
-      return NextResponse.json(
-        { ok: false, error: 'Only PNG, JPG, JPEG, GIF, WEBP and PDF extensions are allowed.' },
-        { status: 400 }
-      )
+    try {
+      // Promote clean quarantine file to permanent Supabase Storage
+      const uploaded = await uploadObject({
+        bucket: STORAGE_BUCKETS.tickets,
+        path: `${userId}/${secResult.sanitizedFileName}`,
+        body: secResult.buffer,
+        contentType: secResult.mimeType,
+      })
+
+      return NextResponse.json({
+        ok: true,
+        url: uploaded.publicUrl,
+      })
+    } finally {
+      cleanupQuarantineFile(secResult.quarantinePath)
     }
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    const fileName = sanitizeStorageFileName(`ticket-${userId}-${Date.now()}.${ext}`)
-
-    const uploaded = await uploadObject({
-      bucket: STORAGE_BUCKETS.tickets,
-      path: `${userId}/${fileName}`,
-      body: buffer,
-      contentType: fileType,
-    })
-
-    return NextResponse.json({
-      ok: true,
-      url: uploaded.publicUrl,
-    })
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Upload failed'
     console.error('Ticket attachment upload failed:', e)
