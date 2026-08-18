@@ -3,6 +3,7 @@ import { generateOtp, storeOtp } from '@/lib/security/otp'
 import { shouldExposeDevOtp } from '@/lib/security/expose-dev-otp'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { requireCaptcha } from '@/lib/security/recaptcha-guard'
+import { sendSms } from '@/lib/sms/sms-service'
 
 export const runtime = 'nodejs'
 
@@ -35,11 +36,21 @@ export async function POST(req: Request) {
     const otp = generateOtp()
     await storeOtp(phone, otp)
 
-    // TODO: integrate SMS provider. Never return OTP in real production without SHOW_DEV_OTP.
+    // Deliver SMS via GatewayAPI SMS service
+    const smsResult = await sendSms({
+      recipient: phone,
+      message: `Your ITU verification code is ${otp}. It is valid for 5 minutes.`,
+    })
+
     const exposeOtp = shouldExposeDevOtp()
     if (exposeOtp) {
       console.log(`\n========================================\n[DEV ONLY] SMS OTP FOR ${phone}: ${otp}\n========================================\n`)
     }
+
+    if (!smsResult.ok && !exposeOtp) {
+      return NextResponse.json({ ok: false, error: smsResult.error }, { status: 500 })
+    }
+
     return NextResponse.json({ ok: true, ...(exposeOtp ? { otp } : {}) })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'otp_send_failed'

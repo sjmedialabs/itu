@@ -680,13 +680,14 @@ export default function AccountProfilePage() {
             ) : null}
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Full Name</label>
                 {isEditing ? (
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Enter your name"
+                    className="h-10 rounded-xl"
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground">{user.name}</p>
@@ -713,7 +714,7 @@ export default function AccountProfilePage() {
                 )}
               </div>
 
-              <div className="space-y-2">
+              <div className={`space-y-2${isEditing ? ' sm:col-span-2' : ''}`}>
                 <label className="text-sm font-medium">Phone Number</label>
                 {isEditing ? (
                   <div className="flex items-center gap-2">
@@ -782,7 +783,7 @@ export default function AccountProfilePage() {
                 )}
               </div>
 
-              <div className="space-y-2">
+              <div className={`space-y-2${isEditing ? ' sm:col-span-2' : ''}`}>
                 <label className="text-sm font-medium">Member Since</label>
                 <div
                   className={`flex items-center justify-start gap-2${
