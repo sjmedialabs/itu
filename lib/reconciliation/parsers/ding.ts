@@ -51,10 +51,18 @@ export class DingParser implements ISupplierParser {
         config.statusMapping[rawStatus.toUpperCase()] || 
         'completed';
 
-      // Build raw row metadata map
+      // Build raw row metadata map safely
       const rawObj: Record<string, unknown> = {};
       headers.forEach((h, i) => {
-        rawObj[h] = cells[i] ?? null;
+        const key = String(h ?? '').trim().replace(/[^a-zA-Z0-9_\- ]/g, '');
+        if (key && key !== '__proto__' && key !== 'constructor' && key !== 'prototype') {
+          Object.defineProperty(rawObj, key, {
+            value: cells[i] ?? null,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+        }
       });
 
       rows.push({

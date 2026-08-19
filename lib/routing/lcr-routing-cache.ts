@@ -58,8 +58,18 @@ export async function getCachedProviderPriorities(): Promise<ProviderPriorityRow
 function hydrateMap<K, V>(raw: unknown): Map<K, V> {
   if (!raw) return new Map<K, V>()
   if (raw instanceof Map) return raw
-  if (Array.isArray(raw)) return new Map<K, V>(raw as [K, V][])
-  if (typeof raw === 'object') return new Map<K, V>(Object.entries(raw) as unknown as [K, V][])
+  if (Array.isArray(raw)) {
+    const valid = (raw as [K, V][]).filter(
+      (entry) => Array.isArray(entry) && entry.length === 2 && entry[0] != null,
+    )
+    return new Map<K, V>(valid)
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    const entries = Object.entries(raw).filter(
+      ([k]) => k !== '__proto__' && k !== 'constructor' && k !== 'prototype',
+    )
+    return new Map<K, V>(entries as unknown as [K, V][])
+  }
   return new Map<K, V>()
 }
 
@@ -90,11 +100,18 @@ export function hydrateAuthoritativeCandidateBundle(
   }
 }
 
+function sanitizeCachePart(val: string | null | undefined): string {
+  if (!val) return ''
+  return encodeURIComponent(String(val).trim().slice(0, 100))
+}
+
 export async function getCachedAuthoritativeBundle(
   internalPlanId: string,
   systemPlanId?: string | null,
 ): Promise<AuthoritativeCandidateBundle | null> {
-  const key = `${PREFIX}bundle:${internalPlanId}:${systemPlanId ?? ''}`
+  const safeInternalId = sanitizeCachePart(internalPlanId)
+  const safeSystemId = sanitizeCachePart(systemPlanId)
+  const key = `${PREFIX}bundle:${safeInternalId}:${safeSystemId}`
   const hit = await getBox<unknown>(key)
   if (hit !== undefined) {
     return hit ? hydrateAuthoritativeCandidateBundle(hit) : null
@@ -122,12 +139,12 @@ export async function getCachedActiveRoutingRules(): Promise<RoutingRuleRow[]> {
 }
 
 export async function getCachedCountryIso3(countryId: string): Promise<string | undefined> {
-  const key = `${PREFIX}iso3:${countryId.trim().toUpperCase()}`
+  const key = `${PREFIX}iso3:${sanitizeCachePart(countryId).toUpperCase()}`
   return getBox<string>(key)
 }
 
 export async function setCachedCountryIso3(countryId: string, iso3: string): Promise<void> {
-  const key = `${PREFIX}iso3:${countryId.trim().toUpperCase()}`
+  const key = `${PREFIX}iso3:${sanitizeCachePart(countryId).toUpperCase()}`
   await setBox(key, iso3)
 }
 
@@ -135,7 +152,7 @@ export async function getCachedOperator(
   countryIso3: string,
   operatorKey: string,
 ): Promise<{ id: string; name: string } | undefined> {
-  const key = `${PREFIX}op:${countryIso3}:${operatorKey.trim().toLowerCase()}`
+  const key = `${PREFIX}op:${sanitizeCachePart(countryIso3).toUpperCase()}:${sanitizeCachePart(operatorKey).toLowerCase()}`
   return getBox<{ id: string; name: string }>(key)
 }
 
@@ -144,6 +161,6 @@ export async function setCachedOperator(
   operatorKey: string,
   value: { id: string; name: string },
 ): Promise<void> {
-  const key = `${PREFIX}op:${countryIso3}:${operatorKey.trim().toLowerCase()}`
+  const key = `${PREFIX}op:${sanitizeCachePart(countryIso3).toUpperCase()}:${sanitizeCachePart(operatorKey).toLowerCase()}`
   await setBox(key, value)
 }
