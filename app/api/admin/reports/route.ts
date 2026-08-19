@@ -27,9 +27,10 @@ export async function GET(request: Request) {
     dateRange,
   }
 
-  // Gather dynamic filters
+  // Gather dynamic filters safely (prototype pollution protection)
   url.searchParams.forEach((val, key) => {
-    if (['reportType', 'page', 'pageSize', 'sort', 'search', 'groupBy', 'from', 'to', 'preset'].includes(key)) return
+    if (['reportType', 'page', 'pageSize', 'sort', 'search', 'groupBy', 'from', 'to', 'preset', '__proto__', 'constructor', 'prototype'].includes(key)) return
+    if (key.startsWith('__')) return
     filters[key] = val
   })
 

@@ -32,6 +32,7 @@ function getPathValue(obj: unknown, path: string | undefined): unknown {
   let current: unknown = obj
   for (const part of parts) {
     if (current == null || typeof current !== 'object') return undefined
+    if (part === '__proto__' || part === 'constructor' || part === 'prototype') return undefined
     current = (current as Record<string, unknown>)[part]
   }
   return current
