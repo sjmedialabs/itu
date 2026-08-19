@@ -266,11 +266,31 @@ services:
     cpus: "0.5"
     networks: *prod-app-networks
 
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: itu-prod-clamav
+    restart: always
+    environment:
+      CLAMD_CONF_MaxFileSize: "100M"
+      CLAMD_CONF_StreamMaxLength: "100M"
+    volumes:
+      - clamav_db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: 1g
+    cpus: "0.5"
+    networks: *prod-app-networks
+
 volumes:
   redis_data:
   app_public_uploads:
   app_storage_reconciliation:
   app_data:
+  clamav_db:
 
 networks:
   itu:

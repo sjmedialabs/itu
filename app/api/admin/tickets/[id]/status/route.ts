@@ -31,18 +31,20 @@ export async function PATCH(request: Request, context: Ctx) {
 
     const ticket = await setTicketStatus(ticketId, status)
 
-    // if (ticket) {
-    //   await notifyStatusUpdate(ticketId, ticket.status)
-    //   await createUserNotification({
-    //     userId: existing.userId,
-    //     title: 'Ticket Status Updated',
-    //     message: `Your ticket "${existing.subject}" status changed to ${status.toUpperCase().replace('_', ' ')}.`,
-    //     type: 'support_ticket_status',
-    //     details: { ticketId, status, ticketSubject: existing.subject },
-    //   }).catch((err) => console.warn('Failed to send user notification on status update:', err))
-    // }
+    if (ticket) {
+      await notifyStatusUpdate(ticketId, ticket.status).catch(() => { })
+      await createUserNotification({
+        userId: existing.userId,
+        title: status === 'resolved' ? 'Support Ticket Resolved' : 'Ticket Status Updated',
+        message:
+          status === 'resolved'
+            ? `Your ticket "${existing.subject}" has been marked as resolved.`
+            : `Your ticket "${existing.subject}" status changed to ${status.toUpperCase().replace('_', ' ')}.`,
+        type: 'support_ticket_status',
+        details: { ticketId, status, ticketSubject: existing.subject },
+      }).catch((err) => console.warn('Failed to send user notification on status update:', err))
+    }
 
-    // --- ADD THIS BLOCK ---
     if (status === 'resolved') {
       sendFcmPushToUser({
         userId: existing.userId,

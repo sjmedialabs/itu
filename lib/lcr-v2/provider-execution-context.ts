@@ -35,17 +35,29 @@ export function buildProviderExecutionContextFromCandidate(input: {
   customer_payment_amount: number
   customer_payment_currency: string
 }): ProviderExecutionContext {
-  const wholesaleAmount =
+  let wholesaleAmount =
     finitePositive(input.candidate.provider_wholesale_amount) ??
     finitePositive(input.candidate.price) ??
     0
   const wholesaleCurrency =
     (input.candidate.provider_wholesale_currency ?? input.candidate.currency ?? '').trim().toUpperCase() ||
     'EUR'
-  const destinationFace =
+  let destinationFace =
     finitePositive(input.candidate.destination_face_value) ?? wholesaleAmount
   const destinationCurrency =
     (input.candidate.destination_currency ?? wholesaleCurrency).trim().toUpperCase() || wholesaleCurrency
+
+  const custCurr = (input.customer_payment_currency || '').trim().toUpperCase()
+  if (
+    destinationFace > 0 &&
+    input.customer_payment_amount > 0 &&
+    (custCurr === destinationCurrency || custCurr === 'INR') &&
+    Math.abs(input.customer_payment_amount - destinationFace) > 0.01
+  ) {
+    const scale = input.customer_payment_amount / destinationFace
+    destinationFace = input.customer_payment_amount
+    wholesaleAmount = Math.round(wholesaleAmount * scale * 10000) / 10000
+  }
 
   return {
     providerId: input.candidate.providerId,
@@ -129,7 +141,9 @@ export function buildProviderPayloadFromContext(ctx: ProviderExecutionContext): 
       }
     case 'FACE_VALUE':
     case 'DENOMINATION': {
-      const amount = denomination ?? ctx.destination_face_value
+      const amount = ctx.adapterKey === 'valuetopup'
+        ? ctx.provider_wholesale_amount
+        : (denomination ?? ctx.destination_face_value)
       return {
         path: isPin ? '/transaction/pin' : '/transaction/topup',
         body: isPin
@@ -140,7 +154,7 @@ export function buildProviderPayloadFromContext(ctx: ProviderExecutionContext): 
               Mobile: ctx.phoneDigits,
               CorrelationId: ctx.externalId.slice(0, 50),
             },
-        logLine: `${ctx.providerPayloadStrategy} Amount=${amount} ${ctx.destination_currency}`,
+        logLine: `${ctx.providerPayloadStrategy} Amount=${amount} ${ctx.adapterKey === 'valuetopup' ? ctx.provider_wholesale_currency : ctx.destination_currency}`,
       }
     }
     case 'SKU':

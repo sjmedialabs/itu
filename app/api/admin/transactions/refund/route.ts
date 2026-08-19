@@ -3,6 +3,7 @@ import { requireAnyAdminPermission } from '@/lib/auth/require-admin-permission'
 import { getUserIdFromRequest } from '@/lib/auth/get-user-id-from-request'
 import { processAdminWalletRefund } from '@/lib/admin/process-wallet-refund'
 import { sendFcmPushToUser } from '@/lib/notifications/fcm-service'
+import { createUserNotification } from '@/lib/notifications/user-notifications'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 
 /**
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Send FCM Push notification to user on new successful refund
+    // Send FCM Push & create DB user notification on new successful refund
     if (result.ok && !result.idempotent && result.transactionId) {
       supabaseRest(
         `transactions?id=eq.${encodeURIComponent(result.transactionId)}&select=user_id&limit=1`,
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
           if (userId) {
             const formattedAmount =
               result.amount != null ? `${result.currency || ''} ${result.amount}`.trim() : 'amount'
+
+            // 1. Send FCM Push Notification
             sendFcmPushToUser({
               userId,
               title: 'Refund Credit Received',
@@ -63,6 +66,19 @@ export async function POST(request: Request) {
                 currency: String(result.currency ?? ''),
               },
             }).catch((err) => console.error('[FCM] Error sending refund push:', err))
+
+            // 2. Create DB User Notification
+            createUserNotification({
+              userId,
+              title: 'Refund Credit Received',
+              message: `Your refund of ${formattedAmount} has been credited to your wallet.`,
+              type: 'amount_refunded',
+              details: {
+                transactionId: result.transactionId,
+                amount: result.amount,
+                currency: result.currency,
+              },
+            }).catch((err) => console.error('Failed to create user notification for refund:', err))
           }
         })
         .catch((err) => console.error('[FCM] Failed to query user for refund push:', err))

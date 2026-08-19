@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { basename, join, resolve } from 'path';
 import { supabaseRest } from '../../db/supabase-rest';
 
 export interface UploadResult {
@@ -59,13 +59,21 @@ export class UploadService {
     }
 
     // 4. Save file to local storage directory for audit records
-    const storageDir = join(process.cwd(), 'storage', 'reconciliation');
+    const storageDir = resolve(process.cwd(), 'storage', 'reconciliation');
     if (!existsSync(storageDir)) {
       mkdirSync(storageDir, { recursive: true });
     }
-    const safePeriod = billingPeriod.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const safeFileName = `${supplier}_${safePeriod}_${billingType}_v${runVersion}_${fileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    const filePath = join(storageDir, safeFileName);
+    const cleanFileName = basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const cleanSupplier = supplier.replace(/[^a-zA-Z0-9_-]/g, '');
+    const cleanBillingType = billingType.replace(/[^a-zA-Z0-9_-]/g, '');
+    const cleanPeriod = billingPeriod.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const safeFileName = `${cleanSupplier}_${cleanPeriod}_${cleanBillingType}_v${runVersion}_${cleanFileName}`;
+    const filePath = resolve(storageDir, safeFileName);
+
+    if (!filePath.startsWith(storageDir)) {
+      throw new Error('Invalid file path: path traversal detected');
+    }
+
     writeFileSync(filePath, fileContent, 'utf8');
 
     return {

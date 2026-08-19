@@ -39,6 +39,7 @@ function getPathValue(obj: unknown, path: string): unknown {
   let current: unknown = obj
   for (const part of parts) {
     if (current == null || typeof current !== 'object') return undefined
+    if (part === '__proto__' || part === 'constructor' || part === 'prototype') return undefined
     current = (current as Record<string, unknown>)[part]
   }
   return current
@@ -117,6 +118,7 @@ export async function executeMappedRecharge(ctx: ProviderExecutionContext): Prom
       const mappings = txConfig.mappings as Record<string, string> | undefined
       if (mappings) {
         for (const [bodyKey, inputPath] of Object.entries(mappings)) {
+          if (!bodyKey || bodyKey === '__proto__' || bodyKey === 'constructor' || bodyKey === 'prototype') continue
           if (inputPath === 'externalId') requestBody[bodyKey] = ctx.externalId
           else if (inputPath === 'providerPlanId') requestBody[bodyKey] = ctx.providerPlanId
           else if (inputPath === 'phoneDigits') requestBody[bodyKey] = ctx.phoneDigits

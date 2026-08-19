@@ -17,8 +17,14 @@ export async function POST(request: Request) {
     const operatorId = typeof body.operatorId === 'string' ? body.operatorId.trim() : ''
     const countryId = typeof body.countryId === 'string' ? body.countryId.trim() : ''
 
-    // Client monetary fields (amount, planPrice, fees, tax, payable, wallet, reward) are ignored.
-    // Payable is resolved server-side from catalog + fee settings.
+    const rawCustomAmount = body.customAmount ?? body.recharge_amount ?? body.amount
+    const customAmount =
+      typeof rawCustomAmount === 'number' && Number.isFinite(rawCustomAmount) && rawCustomAmount > 0
+        ? rawCustomAmount
+        : typeof rawCustomAmount === 'string' && !isNaN(parseFloat(rawCustomAmount)) && parseFloat(rawCustomAmount) > 0
+          ? parseFloat(rawCustomAmount)
+          : undefined
+
     if (!planId || !mobileNumber || !operatorId || !countryId) {
       return NextResponse.json(
         {
@@ -37,6 +43,7 @@ export async function POST(request: Request) {
       operatorId,
       countryId,
       userId: userId || undefined,
+      customAmount,
     })
 
     if (!result.ok) {

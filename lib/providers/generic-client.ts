@@ -71,10 +71,18 @@ function getPathValue(obj: any, path: string): any {
   const parts = path.split('.')
   let current = obj
   for (const part of parts) {
-    if (current == null) return undefined
+    if (current == null || typeof current !== 'object') return undefined
+    if (part === '__proto__' || part === 'constructor' || part === 'prototype') return undefined
     current = current[part]
   }
   return current
+}
+
+function isSafeHeaderName(name: string): boolean {
+  if (!name || typeof name !== 'string') return false
+  const safe = name.trim()
+  if (!safe || safe === '__proto__' || safe === 'constructor' || safe === 'prototype') return false
+  return /^[a-zA-Z0-9\-_]+$/.test(safe)
 }
 
 export async function executeGenericRequest(
@@ -133,12 +141,17 @@ async function executeRequestOnce(
   } else if (apiConfig.authType === 'apiKey') {
     const headerName = apiConfig.authParams.headerName || 'api_key'
     const apiKey = apiConfig.authParams.apiKey || ''
-    headers[headerName] = apiKey
+    if (isSafeHeaderName(headerName)) {
+      headers[headerName] = apiKey
+    }
   } else if (apiConfig.authType === 'oauth') {
     const token = await getOAuth2Token(apiConfig)
     headers['Authorization'] = `Bearer ${token}`
   } else if (apiConfig.authType === 'custom' && apiConfig.authParams.headerName) {
-    headers[apiConfig.authParams.headerName] = apiConfig.authParams.apiKey || ''
+    const headerName = apiConfig.authParams.headerName
+    if (isSafeHeaderName(headerName)) {
+      headers[headerName] = apiConfig.authParams.apiKey || ''
+    }
   }
 
   // 2. Build URL

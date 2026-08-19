@@ -643,6 +643,7 @@ export default function TopupSummaryPage() {
     pricing,
     calculatePricing,
     setTransactionResult,
+    setCheckoutSession,
   } = useTopupStore()
   const { user, isAuthenticated } = useAuthStore()
 
@@ -732,11 +733,40 @@ export default function TopupSummaryPage() {
   const [useRewards, setUseRewards] = useState<boolean>(false)
   const [isLoadingRewards, setIsLoadingRewards] = useState<boolean>(false)
 
+  const { selectPlan } = useTopupStore()
+
   const rechargeCurrency = useMemo(() => {
     return normalizeCurrencyCode(
       selectedPlan?.recharge_currency || pricing?.localCurrency || 'INR',
     )
   }, [selectedPlan, pricing])
+
+  const [rangeAmountInput, setRangeAmountInput] = useState<string>(
+    String(selectedPlan?.recharge_amount || selectedPlan?.minAmount || '')
+  )
+
+  useEffect(() => {
+    if (selectedPlan?.isRange && selectedPlan.recharge_amount) {
+      setRangeAmountInput(String(selectedPlan.recharge_amount))
+    }
+  }, [selectedPlan?.isRange, selectedPlan?.recharge_amount])
+
+  const rangeValidation = useMemo(() => {
+    if (!selectedPlan?.isRange) return { valid: true, error: null }
+    const num = parseFloat(rangeAmountInput)
+    const min = selectedPlan.minAmount ?? 0
+    const max = selectedPlan.maxAmount ?? Infinity
+    if (!rangeAmountInput || isNaN(num) || num <= 0) {
+      return { valid: false, error: 'Please enter a valid recharge amount' }
+    }
+    if (num < min || num > max) {
+      return {
+        valid: false,
+        error: `Amount ${formatMoney(num, rechargeCurrency)} is outside allowed range of ${formatMoney(min, rechargeCurrency)} – ${formatMoney(max, rechargeCurrency)}`,
+      }
+    }
+    return { valid: true, error: null }
+  }, [selectedPlan, rangeAmountInput, rechargeCurrency])
 
   useEffect(() => {
     const detectGeoCurrency = async () => {
@@ -1234,8 +1264,47 @@ export default function TopupSummaryPage() {
     setError(null)
 
     const activeWalletCurrency = selectedWalletCurrency || walletCurrency || 'USD'
+    let activeCheckoutSessionId = checkoutSessionId
 
     try {
+      if (selectedPlan.isRange) {
+        const customNum = parseFloat(rangeAmountInput)
+        const min = selectedPlan.minAmount ?? 0
+        const max = selectedPlan.maxAmount ?? Infinity
+        if (!Number.isFinite(customNum) || customNum < min || customNum > max) {
+          throw new Error(`Amount must be between ${min} and ${max}`)
+        }
+        const prepRes = await fetch('/api/topup/prepare-checkout', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...buildUserAuthHeaders(user),
+          },
+          body: JSON.stringify({
+            planId: selectedPlan.internalPlanId || selectedPlan.id,
+            systemPlanId: selectedPlan.systemPlanId || selectedPlan.id,
+            mobileNumber: buildInternationalMobile(countryCode, phoneNumber),
+            operatorId: operatorProviderId || operator,
+            countryId: countryCode,
+            customAmount: customNum,
+          }),
+        })
+        const prepData = await prepRes.json().catch(() => ({}))
+        if (!prepRes.ok || !prepData?.ok || !prepData.checkoutSessionId) {
+          throw new Error(prepData?.error || 'Failed to prepare checkout for range plan')
+        }
+        activeCheckoutSessionId = prepData.checkoutSessionId
+        setCheckoutSession({
+          checkoutSessionId: prepData.checkoutSessionId,
+          transactionId: prepData.transactionId,
+          rechargeOrderId: prepData.rechargeOrderId,
+          rechargeAttemptId: prepData.rechargeAttemptId,
+          selectedProviderName: prepData.selectedProviderName,
+          operatorProviderId: operatorProviderId || operator,
+        })
+      }
+
       // Wallet-only payment
       if (amounts.grand === 0) {
         const headers: Record<string, string> = {
@@ -1247,7 +1316,7 @@ export default function TopupSummaryPage() {
           credentials: 'include',
           headers,
           body: JSON.stringify({
-            transactionId: checkoutSessionId,
+            transactionId: activeCheckoutSessionId,
           }),
         })
         const data = await res.json()
@@ -1290,12 +1359,12 @@ export default function TopupSummaryPage() {
           systemPlanId: selectedPlan.systemPlanId || selectedPlan.id,
           amount: amounts.grand,
           currency: amounts.payableCurrency,
-          mobileNumber: `+${getDialCode(countryCode)}${phoneNumber}`,
+          mobileNumber: buildInternationalMobile(countryCode, phoneNumber),
           operatorId: operatorProviderId || operator,
           countryId: countryCode,
           usedWalletBalance: amounts.usedWalletAmount,
           walletCurrency: activeWalletCurrency,
-          checkoutSessionId,
+          checkoutSessionId: activeCheckoutSessionId,
           usedRewardPoints: amounts.pointsUsed,
           checkoutPricing: {
             planPrice: amounts.subtotal,
@@ -1400,6 +1469,8 @@ export default function TopupSummaryPage() {
     operator,
     operatorProviderId,
     checkoutSessionId,
+    rangeAmountInput,
+    setCheckoutSession,
     setTransactionResult,
     router,
     selectedWalletCurrency,
@@ -1423,7 +1494,12 @@ export default function TopupSummaryPage() {
   }, [isAuthenticated])
 
   const proceedToPay = () => {
-    if (!selectedPlan || !pricing || isSubmitting || checkoutBlock) return
+    if (!selectedPlan || !pricing || isSubmitting || checkoutBlock || !rangeValidation.valid) {
+      if (!rangeValidation.valid && rangeValidation.error) {
+        setError(rangeValidation.error)
+      }
+      return
+    }
 
     if (!isAuthenticated) {
       setPayAfterLogin(true)
@@ -1499,6 +1575,52 @@ export default function TopupSummaryPage() {
           <div className="grid gap-6 px-6 pb-8 md:grid-cols-[1fr_320px] md:px-8">
             {/* Left Column — Details */}
             <div className="space-y-5">
+              {/* Custom Range Plan Amount Input */}
+              {selectedPlan.isRange && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-5 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-amber-950">Enter Recharge Amount</label>
+                    <span className="text-[11px] font-semibold text-amber-800 bg-amber-100/90 px-2.5 py-0.5 rounded-full">
+                      Flexi Range Plan
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      step="any"
+                      value={rangeAmountInput}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setRangeAmountInput(val)
+                        const num = parseFloat(val)
+                        const min = selectedPlan.minAmount ?? 0
+                        const max = selectedPlan.maxAmount ?? Infinity
+                        if (Number.isFinite(num) && num >= min && num <= max) {
+                          selectPlan({ ...selectedPlan, recharge_amount: num })
+                          calculatePricing()
+                        }
+                      }}
+                      placeholder={`Enter amount in ${rechargeCurrency}`}
+                      className={cn(
+                        'h-12 text-lg font-bold rounded-xl bg-white px-4 shadow-none',
+                        rangeValidation.error ? 'border-red-500 focus-visible:ring-red-500 ring-1 ring-red-500' : 'border-amber-300/80'
+                      )}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-medium text-amber-900/80">
+                    <span>Provider Accepted Range:</span>
+                    <span className="font-bold text-amber-950">
+                      {selectedPlan.minAmount != null ? formatMoney(selectedPlan.minAmount, rechargeCurrency) : 'N/A'} – {selectedPlan.maxAmount != null ? formatMoney(selectedPlan.maxAmount, rechargeCurrency) : 'N/A'}
+                    </span>
+                  </div>
+                  {rangeValidation.error && (
+                    <p className="text-xs font-semibold text-red-600 flex items-center gap-1.5 mt-1 bg-red-50 p-2 rounded-lg border border-red-200">
+                      <span>⚠</span> {rangeValidation.error}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Recharge Details */}
               <div className="rounded-xl border border-neutral-200/80 bg-white p-5">
                 <p className="text-sm font-semibold text-neutral-900">Recharge Details</p>
@@ -1834,6 +1956,7 @@ export default function TopupSummaryPage() {
                   disabled={
                     Boolean(checkoutBlock) ||
                     isSubmitting ||
+                    !rangeValidation.valid ||
                     amounts.conversionFailed ||
                     (amounts.grand > 0 && !razorpayPaymentCheck.ok)
                   }

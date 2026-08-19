@@ -9,6 +9,7 @@ import {
   STORAGE_BUCKETS,
   uploadObject,
 } from '@/lib/storage/object-storage'
+import { processSecureUpload, cleanupQuarantineFile } from '@/lib/security/upload-security'
 
 export async function POST(req: Request) {
   try {
@@ -47,35 +48,32 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: 'No file uploaded' }, { status: 400 })
     }
 
-    const fileType = file.type
-    if (fileType !== 'image/png' && fileType !== 'image/jpeg' && fileType !== 'image/jpg') {
-      return NextResponse.json(
-        { ok: false, error: 'Only PNG and JPG/JPEG files are allowed.' },
-        { status: 400 }
-      )
-    }
-
-    const ext = file.name.split('.').pop()?.toLowerCase() || ''
-    if (ext !== 'png' && ext !== 'jpg' && ext !== 'jpeg') {
-      return NextResponse.json(
-        { ok: false, error: 'Only PNG and JPG/JPEG file extensions are allowed.' },
-        { status: 400 }
-      )
-    }
-
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    const sanitizedExt = ext === 'png' ? 'png' : 'jpg'
-    const fileName = sanitizeStorageFileName(`avatar-${userId}-${Date.now()}.${sanitizedExt}`)
-
-    const uploaded = await uploadObject({
-      bucket: STORAGE_BUCKETS.avatars,
-      path: `${userId}/${fileName}`,
-      body: buffer,
-      contentType: fileType,
-      upsert: true,
+    const secResult = await processSecureUpload({
+      file,
+      originalName: file.name,
+      declaredMimeType: file.type,
+      category: 'avatar',
     })
+
+    if (!secResult.ok) {
+      return NextResponse.json(
+        { ok: false, error: secResult.error },
+        { status: secResult.status }
+      )
+    }
+
+    let uploaded
+    try {
+      uploaded = await uploadObject({
+        bucket: STORAGE_BUCKETS.avatars,
+        path: `${userId}/${secResult.sanitizedFileName}`,
+        body: secResult.buffer,
+        contentType: secResult.mimeType,
+        upsert: true,
+      })
+    } finally {
+      cleanupQuarantineFile(secResult.quarantinePath)
+    }
 
     const imageUrl = uploaded.publicUrl
 

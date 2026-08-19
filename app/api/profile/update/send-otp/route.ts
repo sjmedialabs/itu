@@ -4,6 +4,7 @@ import { shouldExposeDevOtp } from '@/lib/security/expose-dev-otp'
 import { rateLimit } from '@/lib/security/rate-limit'
 import { runtimeEnv } from '@/lib/env/runtime'
 import { sendEmail } from '@/lib/email/mailer'
+import { sendSms } from '@/lib/sms/sms-service'
 import { supabaseGetUser } from '@/lib/supabase/auth-rest'
 import { supabaseRest } from '@/lib/db/supabase-rest'
 import { fetchProfileForUser } from '@/lib/auth/get-admin-from-request'
@@ -123,17 +124,25 @@ export async function POST(req: Request) {
           </div>
         `,
       })
+    } else if (type === 'phone') {
+      const smsResult = await sendSms({
+        recipient: value,
+        message: `Your ITU verification code is ${otp}. It is valid for 5 minutes.`,
+      })
+
+      if (!smsResult.ok && !exposeOtp) {
+        return NextResponse.json({ ok: false, error: smsResult.error }, { status: 500 })
+      }
     }
 
     if (exposeOtp) {
       console.log(`\n========================================\n[DEV ONLY] PROFILE UPDATE OTP FOR ${value}: ${otp}\n========================================\n`)
     }
 
-    // Return OTP in response for testing (SHOW_DEV_OTP / non-production) or phone SMS stub
     return NextResponse.json({
       ok: true,
       message: 'Verification OTP sent successfully',
-      ...(exposeOtp || type === 'phone' ? { otp } : {})
+      ...(exposeOtp ? { otp } : {}),
     })
   } catch (e) {
     console.error('Failed to send verification OTP:', e)

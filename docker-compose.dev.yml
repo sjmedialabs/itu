@@ -205,10 +205,28 @@ services:
     networks:
       - itu
 
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: itu-dev-clamav
+    ports:
+      - "3310:3310"
+    restart: unless-stopped
+    volumes:
+      - clamav_dev_db:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - itu
+
 volumes:
   redis_data:
   dev_node_modules:
   dev_next_cache:
+  clamav_dev_db:
 
 networks:
   itu:

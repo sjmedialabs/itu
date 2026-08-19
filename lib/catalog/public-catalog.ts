@@ -118,6 +118,9 @@ export type PublicPlan = {
   type: 'topup' | 'unlimited' | 'data'
   planName: string
   currency?: string
+  isRange?: boolean
+  minAmount?: number
+  maxAmount?: number
 }
 
 function mapPlanType(
@@ -549,6 +552,9 @@ function systemPlanToPublic(
     type: mapPlanType(String(planTypeRaw), planName, benefits),
     planName,
     currency: recharge.currency,
+    isRange: mapped.isRange,
+    minAmount: mapped.minAmount,
+    maxAmount: mapped.maxAmount,
   }
 }
 
