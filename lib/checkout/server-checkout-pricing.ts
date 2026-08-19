@@ -97,6 +97,7 @@ async function fetchEurBaseRates(): Promise<Record<string, number> | null> {
 export async function resolveServerCheckoutPricing(input: {
   planId: string
   systemPlanId?: string
+  customAmount?: number
 }): Promise<ServerCheckoutPricingResult> {
   const systemPlanId = await resolveSystemPlanId(input)
   if (!systemPlanId) {
@@ -105,12 +106,38 @@ export async function resolveServerCheckoutPricing(input: {
 
   const detailsMap = await batchLoadSystemPlanMappedDetails([systemPlanId])
   const details = detailsMap.get(systemPlanId)
-  if (!details?.recharge?.amount || details.recharge.amount <= 0) {
+  if (!details) {
     return { ok: false, error: 'Unable to resolve plan selling price from catalog', status: 422 }
   }
 
-  const planPrice = details.recharge.amount
-  const currency = (details.recharge.currency || 'INR').trim().toUpperCase() || 'INR'
+  let planPrice: number
+  if (details.isRange) {
+    const rawCustom =
+      typeof input.customAmount === 'number' && Number.isFinite(input.customAmount)
+        ? input.customAmount
+        : undefined
+    const candidateAmount = rawCustom ?? details.recharge?.amount
+    if (!candidateAmount || candidateAmount <= 0) {
+      return { ok: false, error: 'Please enter a valid recharge amount for flexi range plan', status: 422 }
+    }
+    const min = details.minAmount ?? 0
+    const max = details.maxAmount ?? Infinity
+    if (candidateAmount < min - 0.001 || candidateAmount > max + 0.001) {
+      return {
+        ok: false,
+        error: `Amount ${candidateAmount} is outside allowed range of ${min} – ${max}`,
+        status: 422,
+      }
+    }
+    planPrice = candidateAmount
+  } else {
+    if (!details.recharge?.amount || details.recharge.amount <= 0) {
+      return { ok: false, error: 'Unable to resolve plan selling price from catalog', status: 422 }
+    }
+    planPrice = details.recharge.amount
+  }
+
+  const currency = (details.recharge?.currency || 'INR').trim().toUpperCase() || 'INR'
 
   const feeConfig = await loadRechargeProcessingFeeConfig()
   const eurBaseRates = await fetchEurBaseRates()

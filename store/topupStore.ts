@@ -23,6 +23,9 @@ export type TopupPlan = {
   sms?: string
   benefits?: string
   planName?: string
+  isRange?: boolean
+  minAmount?: number
+  maxAmount?: number
 }
 
 export type TopupPricing = {

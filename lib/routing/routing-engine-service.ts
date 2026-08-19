@@ -215,6 +215,16 @@ export function resolveViableRoutingRule(
 
 type MappingRow = CandidateMappingRow
 
+function ensureMap<K extends string, V>(input: Map<K, V> | Record<K, V> | unknown): Map<K, V> {
+  if (!input) return new Map<K, V>()
+  if (input instanceof Map) return input as Map<K, V>
+  if (Array.isArray(input)) return new Map<K, V>(input as [K, V][])
+  if (typeof input === 'object' && input !== null) {
+    return new Map<K, V>(Object.entries(input) as unknown as [K, V][])
+  }
+  return new Map<K, V>()
+}
+
 async function loadLegacyCandidates(productId: string): Promise<{
   mappings: MappingRow[]
   providers: Map<string, Record<string, unknown>>
@@ -231,7 +241,7 @@ async function loadLegacyCandidates(productId: string): Promise<{
   const mappings = (await mapRes.json()) as MappingRow[]
 
   const authoritative = await resolveProviderPricingForInternalPlan(productId)
-  const authoritativeByKey = authoritative?.byKey ?? new Map<string, AuthoritativeProviderPricingRow>()
+  const authoritativeByKey = ensureMap<string, AuthoritativeProviderPricingRow>(authoritative?.byKey)
 
   for (const mapping of mappings) {
     const authRow = authoritativeByKey.get(
@@ -295,9 +305,9 @@ async function loadCandidates(
     }
     return {
       mappings: authoritativeBundle.mappings,
-      providers: authoritativeBundle.providers,
+      providers: ensureMap<string, Record<string, unknown>>(authoritativeBundle.providers),
       providersToEvaluate: authoritativeBundle.providersToEvaluate,
-      authoritativeByKey: authoritativeBundle.authoritativeByKey,
+      authoritativeByKey: ensureMap<string, AuthoritativeProviderPricingRow>(authoritativeBundle.authoritativeByKey),
       systemPlanId: authoritativeBundle.systemPlanId,
       discoverySource: 'plan_mappings',
     }
@@ -329,6 +339,8 @@ function evaluateCandidates(
   internalPlanId: string,
 ): RoutingProviderCandidate[] {
   const country = (ctx.countryId ?? '').toUpperCase()
+  const safePriorityMap = ensureMap<string, number>(priorityMap)
+  const safeAuthoritativeByKey = ensureMap<string, AuthoritativeProviderPricingRow>(authoritativeByKey)
 
   return providersToEvaluate.map((prov) => {
     const providerId = String(prov.id)
@@ -336,7 +348,7 @@ function evaluateCandidates(
     const providerCode = prov.code != null ? String(prov.code) : undefined
     const activeStatus = Boolean(prov.is_active)
     const onlineStatus = String(prov.status ?? 'unknown')
-    const priority = priorityMap.get(providerId) ?? (typeof prov.priority === 'number' ? prov.priority : 100)
+    const priority = safePriorityMap.get(providerId) ?? (typeof prov.priority === 'number' ? prov.priority : 100)
 
     const mapping = mappings.find((m) => m.provider_id === providerId)
     const mappingExists = !!mapping
@@ -360,7 +372,7 @@ function evaluateCandidates(
     }
 
     const providerPlanId = mapping.provider_plan_id
-    const authoritative = authoritativeByKey.get(
+    const authoritative = safeAuthoritativeByKey.get(
       authoritativePricingKey(providerId, providerPlanId),
     )
 

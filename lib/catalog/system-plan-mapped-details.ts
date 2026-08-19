@@ -55,6 +55,37 @@ export type SystemPlanMappedDetails = {
   dataVolume?: string
   planType?: string
   rechargeSource: 'mapping_raw' | 'system_plan'
+  isRange?: boolean
+  minAmount?: number
+  maxAmount?: number
+}
+
+export function extractRangeInfo(rawJson: unknown): { isRange: boolean; minAmount?: number; maxAmount?: number } {
+  if (!rawJson || typeof rawJson !== 'object') return { isRange: false }
+  const r = rawJson as Record<string, unknown>
+
+  // DTOne style: is_range, min_amount, max_amount
+  if (r.is_range === true || r.is_range === 'true') {
+    const min = Number(r.min_amount) || 0
+    const max = Number(r.max_amount) || 0
+    return { isRange: true, minAmount: min || undefined, maxAmount: max || undefined }
+  }
+
+  // Ding style: Minimum.SendValue / Maximum.SendValue (or ReceiveValue)
+  const minSend = (r.Minimum as any)?.SendValue ?? (r.Minimum as any)?.ReceiveValue
+  const maxSend = (r.Maximum as any)?.SendValue ?? (r.Maximum as any)?.ReceiveValue
+  if (typeof minSend === 'number' && typeof maxSend === 'number' && minSend !== maxSend) {
+    return { isRange: true, minAmount: minSend, maxAmount: maxSend }
+  }
+
+  // ValueTopup style: min.faceValue / max.faceValue
+  const minFace = (r.min as any)?.faceValue
+  const maxFace = (r.max as any)?.faceValue
+  if (typeof minFace === 'number' && typeof maxFace === 'number' && minFace !== maxFace) {
+    return { isRange: true, minAmount: minFace, maxAmount: maxFace }
+  }
+
+  return { isRange: false }
 }
 
 /** Verified mappings first, then highest matching_score (same intent as admin provider popup). */
@@ -117,6 +148,7 @@ export function mergeMappedDetailsWithSystemPlan(
   const systemName = systemPlan?.system_plan_name?.trim() || ''
   const systemDescription = systemPlan?.description?.trim() || ''
   const systemValidity = systemPlan?.validity?.trim() || ''
+  const rangeInfo = extractRangeInfo(raw?.raw_json)
 
   return {
     recharge,
@@ -126,6 +158,9 @@ export function mergeMappedDetailsWithSystemPlan(
     planName: systemName || rawFields.planName || 'Plan',
     dataVolume: rawFields.dataVolume || systemPlan?.data_volume?.trim() || undefined,
     planType: rawFields.planType || systemPlan?.plan_type?.trim() || undefined,
+    isRange: rangeInfo.isRange,
+    minAmount: rangeInfo.minAmount,
+    maxAmount: rangeInfo.maxAmount,
   }
 }
 

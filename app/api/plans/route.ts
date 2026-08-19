@@ -60,6 +60,9 @@ export async function GET(request: Request) {
         tag: p.tag,
         type: p.type,
         planName: p.planName,
+        isRange: p.isRange,
+        minAmount: p.minAmount,
+        maxAmount: p.maxAmount,
       })),
     }
     if (rows.length) await cacheSetJson(cacheKey, payload, 300)

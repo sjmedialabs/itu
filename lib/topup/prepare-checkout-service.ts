@@ -58,6 +58,7 @@ export type PrepareCheckoutInput = {
   operatorId: string
   countryId: string
   userId?: string
+  customAmount?: number
 }
 
 export type PrepareCheckoutResult = {
@@ -439,6 +440,7 @@ export async function prepareCheckout(input: PrepareCheckoutInput): Promise<Prep
   const pricingResult = await resolveServerCheckoutPricing({
     planId: input.planId,
     systemPlanId: input.systemPlanId,
+    customAmount: input.customAmount,
   })
   if (!pricingResult.ok) {
     return { ok: false, error: pricingResult.error }

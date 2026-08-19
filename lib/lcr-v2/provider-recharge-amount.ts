@@ -103,7 +103,7 @@ export function resolveDingRechargeAmount(rawPlan: ProviderRawPlanRow | null | u
   }
 }
 
-/** ValueTopup expects face value (min.faceValue) in min.faceValueCurrency. */
+/** ValueTopup expects EUR wholesale amount in wallet currency for topup Amount parameter. */
 export function resolveValueTopupRechargeAmount(
   rawPlan: ProviderRawPlanRow | null | undefined,
   providerPlanId?: string,
@@ -115,25 +115,43 @@ export function resolveValueTopupRechargeAmount(
   const sep = (providerPlanId ?? '').indexOf(':')
   const amountFromId = sep > 0 ? finiteAmount((providerPlanId ?? '').slice(sep + 1)) : null
 
+  const wholesale = resolveWholesalePricing({
+    rawJson: rawPlan?.raw_json,
+    amount: rawPlan?.amount,
+    currency: rawPlan?.currency,
+    destinationAmount: rawPlan?.destination_amount,
+    destinationCurrency: rawPlan?.destination_currency,
+  })
+
+  const wholesaleAmount =
+    wholesale.wholesaleAmount ??
+    finiteAmount(minBlock?.faceValueInWalletCurrency) ??
+    finiteAmount(rawPlan?.amount)
+
+  const wholesaleCurrency =
+    wholesale.wholesaleCurrency ??
+    currencyFromRaw(raw, 'min.walletCurrency') ??
+    currencyCode(rawPlan?.currency) ??
+    'EUR'
+
   const faceValue =
     amountFromId ??
     finiteAmount(minBlock?.faceValue) ??
     finiteAmount(rawPlan?.destination_amount) ??
-    finiteAmount(rawPlan?.amount)
+    wholesaleAmount
 
   const faceCurrency =
     currencyFromRaw(raw, 'min.faceValueCurrency') ??
     currencyCode(rawPlan?.destination_currency) ??
-    currencyCode(rawPlan?.currency) ??
-    'USD'
+    'INR'
 
   const minAmount = finiteAmount(minBlock?.faceValue) ?? faceValue
   const maxAmount = finiteAmount(maxBlock?.faceValue) ?? minAmount
 
   return {
-    providerAmount: faceValue,
-    providerCurrency: faceCurrency,
-    amountField: 'face_value',
+    providerAmount: wholesaleAmount ?? faceValue,
+    providerCurrency: wholesaleCurrency ?? faceCurrency,
+    amountField: 'send_value',
     minAmount,
     maxAmount,
     receiveAmount: faceValue,

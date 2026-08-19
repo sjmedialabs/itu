@@ -274,6 +274,7 @@ function TopupPlanSelectionContent() {
   const [resolvedProviderCode, setResolvedProviderCode] = useState<string | undefined>()
   const [tab, setTab] = useState<(typeof tabs)[number]['id']>('all')
   const [sort, setSort] = useState<'price-asc' | 'price-desc'>('price-asc')
+  const [planRangeFilter, setPlanRangeFilter] = useState<'all' | 'range' | 'predefined'>('all')
 
   const [operatorDialogOpen, setOperatorDialogOpen] = useState(false)
   const [providersLoading, setProvidersLoading] = useState(false)
@@ -501,6 +502,8 @@ function TopupPlanSelectionContent() {
   const visiblePlans = useMemo(() => {
     let rows = [...plans]
     if (tab !== 'all') rows = rows.filter((p) => p.type === tab)
+    if (planRangeFilter === 'range') rows = rows.filter((p) => p.isRange === true)
+    if (planRangeFilter === 'predefined') rows = rows.filter((p) => !p.isRange)
 
     const priceOf = (p: TopupPlan) => p.recharge_amount ?? p.price_eur ?? p.price_inr ?? 0
     const effectiveSort = tab === 'all' ? 'price-asc' : sort
@@ -511,7 +514,7 @@ function TopupPlanSelectionContent() {
       rows = rows.sort((a, b) => priceOf(b) - priceOf(a))
     }
     return rows
-  }, [plans, tab, sort])
+  }, [plans, tab, sort, planRangeFilter])
 
   const onBuy = async (plan: TopupPlan) => {
     if (!phoneValidation.valid) {
@@ -573,6 +576,7 @@ function TopupPlanSelectionContent() {
           mobileNumber: buildInternationalMobile(countryCode, localPhone),
           operatorId: effectiveOperatorId,
           countryId: countryCode,
+          customAmount: subtotal,
           amount: payableAmount,
           currency: rechargeCurrency,
           planPrice: subtotal,
@@ -803,20 +807,36 @@ function TopupPlanSelectionContent() {
                 </TabsList>
               </Tabs>
 
-              {tab !== 'all' ? (
-                <div className="flex w-full items-center justify-end gap-3 md:w-auto">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Filter by:</span>
-                  <Select value={sort} onValueChange={(v) => setSort(v as 'price-asc' | 'price-desc')}>
-                    <SelectTrigger className="h-11 w-[200px] rounded-full bg-[#f8f6f7] shadow-none ring-1 ring-black/10">
-                      <SelectValue placeholder="Sort by" />
+              <div className="flex w-full flex-wrap items-center justify-end gap-3 md:w-auto">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Filter:</span>
+                  <Select value={planRangeFilter} onValueChange={(v) => setPlanRangeFilter(v as 'all' | 'range' | 'predefined')}>
+                    <SelectTrigger className="h-11 w-[170px] rounded-full bg-[#f8f6f7] shadow-none ring-1 ring-black/10 text-xs font-semibold text-neutral-800">
+                      <SelectValue placeholder="Plan Type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="price-asc">Price: Low → High</SelectItem>
-                      <SelectItem value="price-desc">Price: High → Low</SelectItem>
+                      <SelectItem value="all">All Plans</SelectItem>
+                      <SelectItem value="range">Range Plans</SelectItem>
+                      <SelectItem value="predefined">Predefined Plans</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-              ) : null}
+
+                {tab !== 'all' ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Sort:</span>
+                    <Select value={sort} onValueChange={(v) => setSort(v as 'price-asc' | 'price-desc')}>
+                      <SelectTrigger className="h-11 w-[170px] rounded-full bg-[#f8f6f7] shadow-none ring-1 ring-black/10 text-xs font-semibold text-neutral-800">
+                        <SelectValue placeholder="Sort by" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="price-asc">Price: Low → High</SelectItem>
+                        <SelectItem value="price-desc">Price: High → Low</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-6 space-y-6">
@@ -871,7 +891,13 @@ function TopupPlanSelectionContent() {
 
                         {/* Specs + description column */}
                         <div className="border-t border-neutral-100 bg-white px-5 py-4 md:border-l md:border-t-0 md:py-5">
-                          {plan.type === 'topup' && (
+                          {plan.isRange && (
+                            <div className="mb-3.5 flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-800 border border-amber-500/20 w-fit">
+                              <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                              Flexi Range ({plan.minAmount && plan.maxAmount ? `${plan.minAmount} – ${plan.maxAmount} ${plan.recharge_currency}` : 'Custom Amount'})
+                            </div>
+                          )}
+                          {plan.type === 'topup' && !plan.isRange && (
                             (() => {
                               const ttMatch = (plan.benefits ?? '').match(/(?:talktime\s+of|talktime|tiempo\s+de\s+conversaci[oó]n|valor|cr[eé]dito)\s*(?:inr|rs\.?|eur|€)?\s*([\d.,]+)/i)
                               const talktimeText = ttMatch
