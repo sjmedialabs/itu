@@ -74,8 +74,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # Next vendors node-tar for build-time SWC download only — strip any copy in standalone.
 RUN find /app -type d -path '*/next/dist/compiled/tar' -exec rm -rf {} + 2>/dev/null || true
 
-RUN mkdir -p /app/public/uploads /app/storage/reconciliation /app/data \
-  && chown -R nextjs:nodejs /app/public/uploads /app/storage/reconciliation /app/data
+RUN mkdir -p /app/public/uploads /app/storage/reconciliation /app/storage/quarantine /app/data \
+  && chown -R nextjs:nodejs /app/public/uploads /app/storage/reconciliation /app/storage/quarantine /app/data
 
 COPY scripts/docker-entrypoint-web.sh /docker-entrypoint-web.sh
 RUN chmod 755 /docker-entrypoint-web.sh

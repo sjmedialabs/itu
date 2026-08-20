@@ -24,6 +24,8 @@ spec:
     spec:
       priorityClassName: itu-platform
       terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 1001
       containers:
         - name: web
           image: ghcr.io/techantumsolutions/itu/web@sha256:3b4252d7bc47e98650b7a0f113ba3cad9bdeff57706ef95797ac86683f77bcc6
@@ -78,6 +80,13 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
+          volumeMounts:
+            - name: quarantine
+              mountPath: /app/storage/quarantine
+      volumes:
+        - name: quarantine
+          emptyDir:
+            sizeLimit: 256Mi
 ---
 apiVersion: v1
 kind: Service

@@ -1,3 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: itu-clamav-db
+  namespace: itu
+  labels:
+    app: itu-clamav
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,26 +38,39 @@ spec:
               value: "100M"
             - name: CLAMD_CONF_StreamMaxLength
               value: "100M"
+            # Avoid doubling RAM during daily signature reload.
+            - name: CLAMD_CONF_ConcurrentDatabaseReload
+              value: "no"
           ports:
             - containerPort: 3310
               name: clamav-tcp
           resources:
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 2Gi
             limits:
-              cpu: 500m
-              memory: 1Gi
+              cpu: "1"
+              memory: 4Gi
+          startupProbe:
+            tcpSocket:
+              port: 3310
+            failureThreshold: 36
+            periodSeconds: 10
           livenessProbe:
             tcpSocket:
               port: 3310
-            initialDelaySeconds: 30
             periodSeconds: 15
           readinessProbe:
             tcpSocket:
               port: 3310
-            initialDelaySeconds: 15
             periodSeconds: 10
+          volumeMounts:
+            - name: clamav-db
+              mountPath: /var/lib/clamav
+      volumes:
+        - name: clamav-db
+          persistentVolumeClaim:
+            claimName: itu-clamav-db
 ---
 apiVersion: v1
 kind: Service

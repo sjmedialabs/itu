@@ -1,4 +1,5 @@
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import crypto from 'crypto'
 import { scanBufferWithClamAV } from '@/lib/security/clamav-client'
@@ -36,15 +37,25 @@ export type SecureUploadResult =
 const DEFAULT_QUARANTINE_DIR = path.join(process.cwd(), 'storage', 'quarantine')
 
 function ensureQuarantineDir(): string {
-  try {
-    if (!fs.existsSync(DEFAULT_QUARANTINE_DIR)) {
-      fs.mkdirSync(DEFAULT_QUARANTINE_DIR, { recursive: true })
+  const candidates = [
+    runtimeEnv('UPLOAD_QUARANTINE_DIR'),
+    DEFAULT_QUARANTINE_DIR,
+    path.join(os.tmpdir(), 'itu-quarantine'),
+  ].filter((dir): dir is string => Boolean(dir))
+
+  for (const dir of candidates) {
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+      fs.accessSync(dir, fs.constants.W_OK)
+      return dir
+    } catch (err) {
+      console.warn(`[UploadSecurity] Quarantine dir not writable (${dir}):`, err)
     }
-    return DEFAULT_QUARANTINE_DIR
-  } catch (err) {
-    console.warn('[UploadSecurity] Failed to create local quarantine dir, using tempdir:', err)
-    return process.cwd()
   }
+
+  return os.tmpdir()
 }
 
 /** Default Category Configurations */
