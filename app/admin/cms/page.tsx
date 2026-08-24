@@ -29,6 +29,7 @@ import {
   ChevronRight,
   Shield,
   FileText,
+  Smartphone,
 } from 'lucide-react'
 import { PrivacyFaqItem, TermsSectionItem } from '@/lib/cms-store'
 import Link from 'next/link'
@@ -44,6 +45,7 @@ import { ContactTab } from '@/components/admin/cms/contact-tab'
 import { AboutTab } from '@/components/admin/cms/about-tab'
 import { PrivacyTab } from '@/components/admin/cms/privacy-tab'
 import { TermsTab } from '@/components/admin/cms/terms-tab'
+import { MobileCmsTab } from '@/components/admin/cms/mobile-cms-tab'
 
 export default function CMSPage() {
   const tabsScrollRef = useRef<HTMLDivElement>(null)
@@ -101,7 +103,9 @@ export default function CMSPage() {
     updateContactPage,
     updateAboutPage,
     updatePrivacyPage,
-    updateTermsPage
+    updateTermsPage,
+    updateMobileHomeScreen,
+    updateMobileHelpScreen
   } = useCMSStore()
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
@@ -328,7 +332,12 @@ export default function CMSPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       })
-      if (!res.ok) throw new Error('save')
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null)
+        const errMsg = errJson?.error || `Failed to save (Status ${res.status})`
+        alert(`Error saving CMS: ${errMsg}`)
+        throw new Error(errMsg)
+      }
       markClean()
       setSavedSnapshot(contentSnapshot)
       setSaveStatus('saved')
@@ -383,6 +392,8 @@ export default function CMSPage() {
     updateAboutPage,
     updatePrivacyPage,
     updateTermsPage,
+    updateMobileHomeScreen,
+    updateMobileHelpScreen,
     editingFAQ,
     setEditingFAQ,
     newFAQ,
@@ -419,8 +430,8 @@ export default function CMSPage() {
     <ModulePermissionShell module="cms" className="space-y-6 p-4 sm:p-5 lg:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Website CMS</h1>
-          <p className="text-muted-foreground">Manage all website content, images, and sections</p>
+          <h1 className="text-2xl font-bold">CMS</h1>
+          <p className="text-muted-foreground">Manage all content, images, and sections</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="outline" asChild>
@@ -497,6 +508,10 @@ export default function CMSPage() {
                   <ImageIcon className="h-4 w-4" />
                   <span>Hero</span>
                 </TabsTrigger>
+                <TabsTrigger value="mobile-cms" className="gap-2">
+                  <Smartphone className="h-4 w-4 text-blue-600" />
+                  <span>Mobile CMS</span>
+                </TabsTrigger>
                 <TabsTrigger value="help" className="gap-2">
                   <LifeBuoy className="h-4 w-4" />
                   <span>Help Page</span>
@@ -536,6 +551,7 @@ export default function CMSPage() {
           </div>
 
           <HeroTab />
+          <MobileCmsTab />
           <TopupTab />
           <HelpTab />
           <FooterTab />

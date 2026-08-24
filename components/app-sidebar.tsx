@@ -73,7 +73,7 @@ const mainMenuItems: MenuItem[] = [
     ],
   },
   // { title: 'Wallet', url: '/admin/wallet', icon: Wallet, viewPermission: 'wallet.view' },
-  { title: 'Website CMS', url: '/admin/cms', icon: FileEdit, viewPermission: 'cms.view' },
+  { title: 'CMS', url: '/admin/cms', icon: FileEdit, viewPermission: 'cms.view' },
   { title: 'Jobs & Applications', url: '/admin/jobs', icon: Briefcase, viewPermission: 'jobs.view' },
   { title: 'Customers', url: '/admin/customers', icon: Users, viewPermission: 'customers.view' },
   // { title: 'Contact Leads', url: '/admin/leads', icon: Users, viewPermission: 'leads.view' },

@@ -353,6 +353,58 @@ export interface AboutPageContent {
   promoDesc: string
 }
 
+export interface MobileHomeScreenCard {
+  id: string
+  icon: string
+  title: string
+  /** Feature description (max 20 characters) */
+  description: string
+}
+
+export interface MobileHomeScreenContent {
+  // Hero Banner Section
+  logoImage: string
+  bgBannerImage: string
+  titleLine1: string
+  titleLine2: string
+  titleLine2ColorToggle: boolean
+  titleLine2ColorCode: string
+  subtitle: string
+
+  // Welcome Popup Section
+  welcomePopupIcon: string
+  welcomePopupTitle: string
+  /** Welcome popup description (max 30 characters) */
+  welcomePopupDescription: string
+
+  // Send Top-Up Section
+  sendTopUpTitle: string
+  sendTopUpSubtitle: string
+  cards: MobileHomeScreenCard[]
+
+  // Popular Top-Up Section
+  popularTopUpTitle: string
+
+  // Reward Points Gift Card Section
+  rewardPointsIcon: string
+  rewardPointsTitle: string
+  rewardPointsSubtitle: string
+  rewardPointsButtonText: string
+}
+
+export interface MobileHelpScreenContent {
+  // Banner Card Section
+  cardLeftIcon: string
+  bannerMiddleImage: string
+  title: string
+  description: string
+}
+
+export interface MobileCmsContent {
+  homeScreen: MobileHomeScreenContent
+  helpScreen: MobileHelpScreenContent
+}
+
 export interface SiteContent {
   header: HeaderContent
   hero: HeroContent
@@ -376,6 +428,7 @@ export interface SiteContent {
   aboutPage: AboutPageContent
   privacyPage: PrivacyPageContent
   termsPage: TermsPageContent
+  mobileCms: MobileCmsContent
 }
 
 export interface CountriesGridItem {
@@ -919,6 +972,47 @@ const defaultContent: SiteContent = {
         isActive: true
       }
     ]
+  },
+  mobileCms: {
+    homeScreen: {
+      logoImage: '',
+      bgBannerImage: '',
+      titleLine1: 'Instant International',
+      titleLine2: 'Top-Up',
+      titleLine2ColorToggle: true,
+      titleLine2ColorCode: '#FF6B00',
+      subtitle: 'anytime, anywhere\nFast, Secure & Hassle-free',
+      welcomePopupIcon: 'gift',
+      welcomePopupTitle: 'Welcome to ITU Mobile',
+      welcomePopupDescription: 'Get special top-up offers now!',
+      sendTopUpTitle: 'Send Top-Up',
+      sendTopUpSubtitle: 'Enter the phone number you want to recharge',
+      cards: [
+        {
+          id: 'm-card-1',
+          icon: 'shield',
+          title: 'Secure Payments',
+          description: '100% Safe & Trusted',
+        },
+        {
+          id: 'm-card-2',
+          icon: 'zap',
+          title: 'Instant Top-Up',
+          description: 'In Seconds',
+        },
+      ],
+      popularTopUpTitle: 'Popular Top-Up',
+      rewardPointsIcon: '',
+      rewardPointsTitle: 'Earn Rewards on Every Top-Up!',
+      rewardPointsSubtitle: 'Top-up more, earn more points',
+      rewardPointsButtonText: 'View Points >',
+    },
+    helpScreen: {
+      cardLeftIcon: '',
+      bannerMiddleImage: '',
+      title: 'How can we help you?',
+      description: 'Find answers, track your top-ups, or reach out to our 24/7 support team.',
+    },
   }
 }
 
@@ -965,6 +1059,8 @@ interface CMSStore {
   updateAboutPage: (aboutPage: Partial<AboutPageContent>) => void
   updatePrivacyPage: (privacyPage: Partial<PrivacyPageContent>) => void
   updateTermsPage: (termsPage: Partial<TermsPageContent>) => void
+  updateMobileHomeScreen: (homeScreen: Partial<MobileHomeScreenContent>) => void
+  updateMobileHelpScreen: (helpScreen: Partial<MobileHelpScreenContent>) => void
   resetToDefault: () => void
   markClean: () => void
 }
@@ -1058,6 +1154,19 @@ function mergeSiteContent(partial: Partial<SiteContent> | undefined): SiteConten
       ...defaultContent.termsPage,
       ...(p.termsPage ?? {}),
       sections: p.termsPage?.sections ?? defaultContent.termsPage.sections,
+    },
+    mobileCms: {
+      ...defaultContent.mobileCms,
+      ...(p.mobileCms ?? {}),
+      homeScreen: {
+        ...defaultContent.mobileCms.homeScreen,
+        ...(p.mobileCms?.homeScreen ?? {}),
+        cards: p.mobileCms?.homeScreen?.cards ?? defaultContent.mobileCms.homeScreen.cards,
+      },
+      helpScreen: {
+        ...defaultContent.mobileCms.helpScreen,
+        ...(p.mobileCms?.helpScreen ?? {}),
+      },
     },
   }
 }
@@ -1256,6 +1365,36 @@ export const useCMSStore = create<CMSStore>()(
               ...(state.content.termsPage ?? {}),
               ...termsPage,
               sections: termsPage.sections ?? state.content.termsPage?.sections ?? defaultContent.termsPage.sections,
+            },
+          },
+          isDirty: true,
+        })),
+
+      updateMobileHomeScreen: (homeScreen) =>
+        set((state) => ({
+          content: {
+            ...state.content,
+            mobileCms: {
+              ...state.content.mobileCms,
+              homeScreen: {
+                ...state.content.mobileCms.homeScreen,
+                ...homeScreen,
+              },
+            },
+          },
+          isDirty: true,
+        })),
+
+      updateMobileHelpScreen: (helpScreen) =>
+        set((state) => ({
+          content: {
+            ...state.content,
+            mobileCms: {
+              ...state.content.mobileCms,
+              helpScreen: {
+                ...state.content.mobileCms.helpScreen,
+                ...helpScreen,
+              },
             },
           },
           isDirty: true,
