@@ -55,8 +55,22 @@ export async function POST(req: Request) {
   if (denied) return denied
 
   try {
-    const body = (await req.json().catch(() => null)) as { content?: SiteContent } | null
-    if (!body?.content) return NextResponse.json({ ok: false, error: 'Missing content' }, { status: 400 })
+    const textBody = await req.text().catch(() => '')
+    if (!textBody) {
+      return NextResponse.json({ ok: false, error: 'Missing content payload' }, { status: 400 })
+    }
+
+    let body: { content?: SiteContent } | null = null
+    try {
+      body = JSON.parse(textBody)
+    } catch (parseErr) {
+      console.error('CMS POST JSON parse error:', parseErr)
+      return NextResponse.json({ ok: false, error: 'Invalid JSON request payload' }, { status: 400 })
+    }
+
+    if (!body?.content) {
+      return NextResponse.json({ ok: false, error: 'Missing content field in request body' }, { status: 400 })
+    }
 
     const payload = [{ id: CMS_ID, content: body.content, updated_at: new Date().toISOString() }]
     const res = await supabaseRest('cms_site', {
@@ -68,10 +82,13 @@ export async function POST(req: Request) {
     })
 
     if (!res.ok) {
-      return NextResponse.json({ ok: false, error: await res.text() }, { status: 500 })
+      const errText = await res.text()
+      console.error('Supabase error saving CMS site:', res.status, errText)
+      return NextResponse.json({ ok: false, error: errText }, { status: res.status >= 400 && res.status < 500 ? res.status : 500 })
     }
 
     await cacheDel(CMS_CACHE_KEY)
+    await cacheDel('cms:mobile:default')
 
     await logAdminActivity({
       action: 'Update CMS Content',
@@ -80,8 +97,9 @@ export async function POST(req: Request) {
     })
 
     return NextResponse.json({ ok: true })
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: 'Failed to save CMS content' }, { status: 500 })
+  } catch (e: any) {
+    console.error('POST /api/cms unhandled exception:', e)
+    return NextResponse.json({ ok: false, error: e?.message || 'Failed to save CMS content' }, { status: 500 })
   }
 }
 
